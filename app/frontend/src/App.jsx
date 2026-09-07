@@ -2,6 +2,9 @@ import './App.css'
 import { ROLES, ROLE_LABELS } from './config/roles'
 
 function App() {
+  const currentRole = ROLES.WH
+  const currentRoleLabel = ROLE_LABELS[currentRole]
+
   const navigationItems = [
     { label: 'Dashboard', active: true },
     { label: 'Invoices' },
