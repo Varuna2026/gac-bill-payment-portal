@@ -1,4 +1,5 @@
 import './App.css'
+import { ROLES, ROLE_LABELS } from './config/roles'
 
 function App() {
   const navigationItems = [
