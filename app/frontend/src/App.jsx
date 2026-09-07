@@ -1,19 +1,15 @@
 import './App.css'
 import { ROLES, ROLE_LABELS } from './config/roles'
+import { NAVIGATION_BY_ROLE } from './config/navigation'
 
 function App() {
   const currentRole = ROLES.WH
   const currentRoleLabel = ROLE_LABELS[currentRole]
 
-  const navigationItems = [
-    { label: 'Dashboard', active: true },
-    { label: 'Invoices' },
-    { label: 'Pending' },
-    { label: 'Submitted' },
-    { label: 'Returned / Rejected' },
-    { label: 'Reports' },
-    { label: 'Payment Status' },
-  ]
+  const navigationItems = NAVIGATION_BY_ROLE[currentRole].map((label) => ({
+    label,
+    active: label === 'Dashboard',
+  }))
 
   return (
     <div className="portal">
