@@ -1,0 +1,25 @@
+export const WORKFLOW_STAGES = {
+  VENDOR: 'VENDOR',
+  WH: 'WH',
+  SITE_MANAGER: 'SITE_MANAGER',
+  ACCOUNTS: 'ACCOUNTS',
+  ACCOUNTS_PAID: 'ACCOUNTS_PAID',
+}
+
+export const WORKFLOW_STAGE_LABELS = {
+  VENDOR: 'Vendor',
+  WH: 'Warehouse',
+  SITE_MANAGER: 'Site / WH Manager',
+  ACCOUNTS: 'Accounts',
+  ACCOUNTS_PAID: 'Accounts Paid',
+}
+
+export const WORKFLOW_STATUS = {
+  DRAFT: 'DRAFT',
+  SUBMITTED: 'SUBMITTED',
+  PENDING: 'PENDING',
+  RETURNED: 'RETURNED',
+  REJECTED: 'REJECTED',
+  APPROVED: 'APPROVED',
+  PAID: 'PAID',
+}
