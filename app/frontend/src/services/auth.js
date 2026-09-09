@@ -11,7 +11,7 @@ const DEMO_USERS = [
   { username: 'CBO-O01', display_name: 'CBO Officer 01', role: 'CBO_OFFICER' },
 ]
 
-const DEMO_PASSWORD_HASH = 'd4b9a5f7f1d5d5c5a9a0c5e4b7d8e8c4b2a4f7f1e6a5c2d4e9f6a7b8c9d0e1f2'
+const DEMO_PASSWORD_HASH = 'e86f78a8a3caf0b60d8e74e5942aa6d86dc150cd3c03338aef25b7d2d7e3acc7'
 
 export const authConfigured = true
 export const RD_MODE = true
@@ -29,8 +29,6 @@ export async function loginWithUsername(username, password) {
   const user = DEMO_USERS.find(x => x.username.toLowerCase() === id.toLowerCase())
   if (!user) throw new Error('Invalid ID or Password.')
 
-  // R&D demo password is validated client-side. Production auth will be replaced
-  // when the portal moves to the final server environment.
   const hash = await passwordHash(password)
   if (hash !== DEMO_PASSWORD_HASH) throw new Error('Invalid ID or Password.')
 
