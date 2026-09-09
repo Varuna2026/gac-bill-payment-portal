@@ -1,4 +1,4 @@
-const storageKey = 'p2v2_auth_session_v2'
+const storageKey = 'p2v2_auth_session_v3'
 
 const DEMO_USERS = [
   { username: 'Admin', display_name: 'Admin', role: 'ADMIN' },
@@ -61,6 +61,7 @@ export function getStoredSession() {
 export async function logout() {
   localStorage.removeItem(storageKey)
   localStorage.removeItem('p2v2_auth_session')
+  localStorage.removeItem('p2v2_auth_session_v2')
 }
 
 export function getDemoUsers() {
