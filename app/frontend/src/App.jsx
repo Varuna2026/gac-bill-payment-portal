@@ -1,29 +1,38 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { NAVIGATION_BY_ROLE } from './config/navigation'
 import { ROLE_LABELS, ROLES } from './config/roles'
 import { CONTRACT_TYPES } from './config/workflow'
+import { getStoredSession, loginWithUsername, logout } from './services/auth'
 import './App.css'
 
 const DEMO_DATA = [
   { id: 1, company: 'VIL', project: 'Project A', location: 'Warehouse 01', vendor: 'Demo Vendor', service: 'Manpower', contract: 'Minimum Wages', invNo: 'INV-001', taxable: 100000, amount: 118000, status: 'Pending', stage: 'Warehouse' },
   { id: 2, company: 'VWPL', project: 'Project B', location: 'Warehouse 02', vendor: 'Demo Vendor 2', service: 'Housekeeping', contract: 'Minimum Wages', invNo: 'INV-002', taxable: 75000, amount: 88500, status: 'Submitted', stage: 'GAC — Compliance' },
-  { id: 3, company: 'VIL', project: 'Project C', location: 'Warehouse 03', vendor: 'Demo Vendor 3', service: 'Manpower', contract: 'Commercial', invNo: 'INV-003', taxable: 150000, amount: 177000, status: 'Approved for Payment', stage: 'Accounts' },
+  { id: 3, company: 'VIL', project: 'Project C', location: 'Warehouse 03', vendor: 'Demo Vendor 3', service: 'Manpower', contract: 'Commercial', invNo: 'INV-003', taxable: 150000, amount: 177000, status: 'Approved for Payment', stage: 'CBO Officer' },
   { id: 4, company: 'VWPL', project: 'Project D', location: 'Warehouse 04', vendor: 'Other Vendor', service: 'Other', contract: 'Others', invNo: 'INV-004', taxable: 50000, amount: 59000, status: 'Paid', stage: 'Accounts', utr: 'UTR-DEMO-004' },
 ]
-const ACTIONS = { WH: ['Accept','Query','Return','Reject'], GAC_COMPLIANCE: ['Accept','Query','Return','Reject','Compliance Checked'], GAC_PO: ['Accept','Query','Return','Reject','PO Mapping'], ACCOUNTS: ['Accept','Query','Return','Reject'], CBO_OFFICE: ['Accept','Approve','Query','Return','Reject'], CBO_OFFICER: ['Approve','Query','Return','Reject'] }
+const ACTIONS = { WH: ['Accept','Query','Return','Reject'], GAC_COMPLIANCE: ['Accept','Query','Return','Reject','Compliance Checked'], GAC_PO: ['Accept','Query','Return','Reject','PO Mapping'], ACCOUNTS: ['Accept','Query','Return','Reject'], CBO_OFFICE: ['Accept','Query','Return','Reject'], CBO_OFFICER: ['Approve','Query','Return','Reject'] }
 const money = (n) => new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n)
 
+function Login({ onLogin }) {
+ const [username,setUsername]=useState(''),[password,setPassword]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('')
+ const submit=async(e)=>{e.preventDefault();setError('');setBusy(true);try{const profile=await loginWithUsername(username,password);onLogin(profile)}catch(err){setError(err.message||'Invalid ID or Password.')}finally{setBusy(false)}}
+ return <div className="login-shell"><div className="login-card"><div className="login-brand">GAC</div><div className="login-title">GAC Bill Payment Portal</div><p className="login-subtitle">P2V2 secure sign-in</p>{error&&<div className="notice login-error">{error}</div>}<form onSubmit={submit}><label>User ID<input autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} placeholder="Enter User ID" autoFocus/></label><label>Password<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter Password"/></label><button className="primary login-button" disabled={busy||!username||!password}>{busy?'Signing in…':'Login'}</button></form></div></div>
+}
+
 function App(){
- const [role,setRole]=useState(ROLES.WH),[active,setActive]=useState('Dashboard'),[search,setSearch]=useState(''),[company,setCompany]=useState('All'),[type,setType]=useState('All'),[data,setData]=useState(DEMO_DATA),[notice,setNotice]=useState('')
- const nav=NAVIGATION_BY_ROLE[role]
+ const [session,setSession]=useState(()=>getStoredSession()),[active,setActive]=useState('Dashboard'),[search,setSearch]=useState(''),[company,setCompany]=useState('All'),[type,setType]=useState('All'),[data,setData]=useState(DEMO_DATA),[notice,setNotice]=useState('')
+ useEffect(()=>{if(session?.profile?.role) setActive('Dashboard')},[session])
+ if(!session?.profile) return <Login onLogin={profile=>setSession(getStoredSession()||{profile})}/>
+ const role=session.profile.role
+ const nav=NAVIGATION_BY_ROLE[role]||NAVIGATION_BY_ROLE[ROLES.ADMIN]
  const filtered=useMemo(()=>data.filter(x=>`${x.invNo} ${x.vendor} ${x.project} ${x.location}`.toLowerCase().includes(search.toLowerCase())&&(company==='All'||x.company===company)&&(type==='All'||x.contract===type)),[data,search,company,type])
- const action=(id,a)=>{const status=a==='Approve'||a==='Compliance Checked'?'Approved for Payment':a==='Accept'?'Accepted':a;setData(data.map(x=>x.id===id?{...x,status}:x));setNotice(`${a} recorded. Workflow history must retain remarks and exact timestamp.`)}
+ const action=(id,a)=>{const status=a==='Approve'?'Approved for Payment':a==='Compliance Checked'?'Compliance Checked':a==='Accept'?'Accepted':a==='PO Mapping'?'PO Mapped':a;setData(data.map(x=>x.id===id?{...x,status}:x));setNotice(`${a} recorded. Workflow history must retain remarks and exact timestamp.`)}
  const submit=(x)=>{setData([{...x,id:Date.now(),status:'Pending',stage:'Warehouse'},...data]);setNotice('Invoice submitted to Warehouse.')}
- return <div className="app-shell">
-  <header className="topbar"><div className="brand-mark">GAC</div><div className="portal-title">GAC Bill Payment Portal</div><div className="user-area">Demo User • {ROLE_LABELS[role]} <button className="logout" onClick={()=>setNotice('Logout will be connected to the configured authentication provider.')}>Logout</button></div></header>
-  <div className="workspace"><aside className="sidebar"><div className="side-label">MENU</div>{nav.map(x=><button key={x} className={`nav-item ${active===x?'active':''}`} onClick={()=>setActive(x)}>{x}</button>)}<div className="role-switcher"><label>Demo role</label><select value={role} onChange={e=>{setRole(e.target.value);setActive('Dashboard')}}>{Object.entries(ROLE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></div></aside>
-   <main className="content"><div className="toolbar"><input placeholder="Search invoice, vendor, project or location" value={search} onChange={e=>setSearch(e.target.value)}/><select value={company} onChange={e=>setCompany(e.target.value)}><option>All</option><option>VIL</option><option>VWPL</option></select><select value={type} onChange={e=>setType(e.target.value)}><option>All</option>{CONTRACT_TYPES.map(x=><option key={x}>{x}</option>)}</select></div>{notice&&<div className="notice">{notice}<button onClick={()=>setNotice('')}>×</button></div>}
-   {active==='Dashboard'?<Dashboard data={data} filtered={filtered} actions={ACTIONS[role]||[]} onAction={action}/>:active==='Submit Invoice'?<SubmitInvoice onSubmit={submit}/>:<InvoiceTable title={active} data={filtered} actions={ACTIONS[role]||[]} onAction={action}/>}</main></div><footer>All Rights Reserved © 2026 GAC Bill Payment Portal</footer></div>
+ const handleLogout=async()=>{await logout();setSession(null);setNotice('')}
+ return <div className="app-shell"><header className="topbar"><div className="brand-mark">GAC</div><div className="portal-title">GAC Bill Payment Portal</div><div className="user-area">{session.profile.display_name||session.profile.username} • {ROLE_LABELS[role]||role}<button className="logout" onClick={handleLogout}>Logout</button></div></header>
+  <div className="workspace"><aside className="sidebar"><div className="side-label">MENU</div>{nav.map(x=><button key={x} className={`nav-item ${active===x?'active':''}`} onClick={()=>setActive(x)}>{x}</button>)}</aside>
+   <main className="content"><div className="toolbar"><input placeholder="Search invoice, vendor, project or location" value={search} onChange={e=>setSearch(e.target.value)}/><select value={company} onChange={e=>setCompany(e.target.value)}><option>All</option><option>VIL</option><option>VWPL</option></select><select value={type} onChange={e=>setType(e.target.value)}><option>All</option>{CONTRACT_TYPES.map(x=><option key={x}>{x}</option>)}</select></div>{notice&&<div className="notice">{notice}<button onClick={()=>setNotice('')}>×</button></div>}{active==='Dashboard'?<Dashboard data={data} filtered={filtered} actions={ACTIONS[role]||[]} onAction={action}/>:active==='Submit Invoice'?<SubmitInvoice onSubmit={submit}/>:<InvoiceTable title={active} data={filtered} actions={ACTIONS[role]||[]} onAction={action}/>}</main></div><footer>All Rights Reserved © 2026 GAC Bill Payment Portal</footer></div>
 }
 function Dashboard({data,filtered,actions,onAction}){const n=s=>data.filter(x=>x.status===s).length;return <><section className="hero-panel"><div><span className="eyebrow">P2V2 WORKFLOW</span><h1>Invoice & Bill Payment Dashboard</h1><p>Current invoice status, workflow actions and payment visibility.</p></div><div className="stage-chip">Live view</div></section><div className="cards"><Metric label="Submitted" value={data.filter(x=>['Submitted','Pending'].includes(x.status)).length}/><Metric label="Pending" value={n('Pending')}/><Metric label="Approved for Payment" value={n('Approved for Payment')}/><Metric label="Paid" value={n('Paid')}/><Metric label="Query / Returned / Rejected" value={data.filter(x=>['Query','Return','Reject'].includes(x.status)).length}/><Metric label="TAT" value="Live"/></div><InvoiceTable data={filtered} actions={actions} onAction={onAction}/></>}
 function Metric({label,value}){return <div className="metric"><span>{label}</span><strong>{value}</strong><small>View details →</small></div>}
