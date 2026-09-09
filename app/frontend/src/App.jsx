@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NAVIGATION_BY_ROLE } from './config/navigation'
 import { ROLE_LABELS, ROLES } from './config/roles'
 import { CONTRACT_TYPES, ROUTES, WORKFLOW_STATUS } from './config/workflow'
@@ -54,16 +54,16 @@ function App() {
     return () => { cancelled = true }
   }, [profile, token, refresh])
 
-  if (!profile) return <Login onLogin={p => setSession(getStoredSession() || { profile: p })} />
-  if (!supabaseConfigured) return <div className="login-shell"><div className="login-card"><div className="login-brand">GAC</div><div className="login-title">GAC Bill Payment Portal</div><div className="notice login-error">Supabase is not configured. Add the VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY values to the deployment environment.</div></div></div>
-
   const canSee = (row) => {
     if (role === ROLES.ADMIN) return true
     if (role !== ROLES.VENDOR) return true
-    const candidates = [profile.username, profile.display_name].filter(Boolean).map(String).map(x => x.toLowerCase())
+    const candidates = [profile?.username, profile?.display_name].filter(Boolean).map(String).map(x => x.toLowerCase())
     return candidates.includes(String(row.vendor || '').toLowerCase())
   }
-  const filtered = useMemo(() => data.filter(canSee).filter(x => `${x.inv_no} ${x.vendor} ${x.project_location}`.toLowerCase().includes(search.toLowerCase()) && (company === 'All' || x.company === company) && (type === 'All' || x.contract_type === type)), [data, search, company, type, role, profile])
+  const filtered = data.filter(canSee).filter(x => `${x.inv_no} ${x.vendor} ${x.project_location}`.toLowerCase().includes(search.toLowerCase()) && (company === 'All' || x.company === company) && (type === 'All' || x.contract_type === type))
+
+  if (!profile) return <Login onLogin={p => setSession(getStoredSession() || { profile: p })} />
+  if (!supabaseConfigured) return <div className="login-shell"><div className="login-card"><div className="login-brand">GAC</div><div className="login-title">GAC Bill Payment Portal</div><div className="notice login-error">Supabase is not configured. Add the VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY values to the deployment environment.</div></div></div>
 
   const handleLogout = async () => { await logout(); setSession(null) }
 
@@ -135,7 +135,7 @@ const actionsByRole = { WH: ['Accept', 'Query', 'Return', 'Reject'], GAC_COMPLIA
 
 function Dashboard({ data, role, onAction }) {
   const count = s => data.filter(x => x.current_status === s).length
-  return <><section className="hero-panel"><div><span className="eyebrow">P2V2 WORKFLOW</span><h1>Invoice & Bill Payment Dashboard</h1><p>Live Supabase invoice status, workflow actions and payment visibility.</p></div><div className="stage-chip">Live data</div></section><div className="cards"><Metric label="Submitted" value={count(WORKFLOW_STATUS.SUBMITTED)} /><Metric label="Pending" value={count(WORKFLOW_STATUS.PENDING)} /><Metric label="Approved for Payment" value={count(WORKFLOW_STATUS.APPROVED_FOR_PAYMENT)} /><Metric label="Paid" value={count(WORKFLOW_STATUS.PAID)} /><Metric label="Query / Returned / Rejected" value={data.filter(x => [WORKFLOW_STATUS.QUERY, WORKFLOW_STATUS.RETURNED, WORKFLOW_STATUS.REJECTED].includes(x.current_status)).length} /><Metric label="TAT" value="Live" /></div><InvoiceTable data={data} role={role} onAction={onAction} /></>
+  return <><section className="hero-panel"><div><span className="eyebrow">P2V2 WORKFLOW</span><h1>Invoice & Bill Payment Dashboard</h1><p>Git-only R&D invoice status, workflow actions and payment visibility.</p></div><div className="stage-chip">R&D mode</div></section><div className="cards"><Metric label="Submitted" value={count(WORKFLOW_STATUS.SUBMITTED)} /><Metric label="Pending" value={count(WORKFLOW_STATUS.PENDING)} /><Metric label="Approved for Payment" value={count(WORKFLOW_STATUS.APPROVED_FOR_PAYMENT)} /><Metric label="Paid" value={count(WORKFLOW_STATUS.PAID)} /><Metric label="Query / Returned / Rejected" value={data.filter(x => [WORKFLOW_STATUS.QUERY, WORKFLOW_STATUS.RETURNED, WORKFLOW_STATUS.REJECTED].includes(x.current_status)).length} /><Metric label="TAT" value="R&D" /></div><InvoiceTable data={data} role={role} onAction={onAction} /></>
 }
 function Metric({ label, value }) { return <div className="metric"><span>{label}</span><strong>{value}</strong><small>View details →</small></div> }
 
