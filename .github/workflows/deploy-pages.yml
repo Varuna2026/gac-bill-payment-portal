@@ -34,9 +34,6 @@ jobs:
         env:
           VITE_APP_NAME: GAC Bill Payment Portal
           VITE_APP_ENV: development
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_AUTH_EMAIL_DOMAIN: ${{ secrets.VITE_AUTH_EMAIL_DOMAIN }}
         run: npm run build
       - name: Setup Pages
         uses: actions/configure-pages@v5
