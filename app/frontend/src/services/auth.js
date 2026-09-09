@@ -1,4 +1,4 @@
-const storageKey = 'p2v2_auth_session'
+const storageKey = 'p2v2_auth_session_v2'
 
 const DEMO_USERS = [
   { username: 'Admin', display_name: 'Admin', role: 'ADMIN' },
@@ -11,12 +11,16 @@ const DEMO_USERS = [
   { username: 'CBO-O01', display_name: 'CBO Officer 01', role: 'CBO_OFFICER' },
 ]
 
-// P2V2 R&D-only mode: authentication is intentionally local to the browser.
-// No Supabase/Auth service is required. The password field is still required
-// so the UI and workflow can be tested; production authentication is to be
-// replaced when the portal moves to the final server environment.
+const DEMO_PASSWORD_HASH = 'd4b9a5f7f1d5d5c5a9a0c5e4b7d8e8c4b2a4f7f1e6a5c2d4e9f6a7b8c9d0e1f2'
+
 export const authConfigured = true
 export const RD_MODE = true
+
+async function passwordHash(value) {
+  const bytes = new TextEncoder().encode(value)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest)).map(x => x.toString(16).padStart(2, '0')).join('')
+}
 
 export async function loginWithUsername(username, password) {
   const id = username.trim()
@@ -24,6 +28,11 @@ export async function loginWithUsername(username, password) {
 
   const user = DEMO_USERS.find(x => x.username.toLowerCase() === id.toLowerCase())
   if (!user) throw new Error('Invalid ID or Password.')
+
+  // R&D demo password is validated client-side. Production auth will be replaced
+  // when the portal moves to the final server environment.
+  const hash = await passwordHash(password)
+  if (hash !== DEMO_PASSWORD_HASH) throw new Error('Invalid ID or Password.')
 
   const profile = {
     id: user.username,
@@ -53,6 +62,7 @@ export function getStoredSession() {
 
 export async function logout() {
   localStorage.removeItem(storageKey)
+  localStorage.removeItem('p2v2_auth_session')
 }
 
 export function getDemoUsers() {
