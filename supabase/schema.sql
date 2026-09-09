@@ -10,6 +10,8 @@ create table if not exists user_role_master (
   wh_scope text,
   created_at timestamptz not null default now()
 );
+alter table user_role_master add column if not exists auth_user_id uuid;
+create unique index if not exists user_role_master_auth_user_id_uidx on user_role_master(auth_user_id) where auth_user_id is not null;
 
 create table if not exists master_data (
   id uuid primary key default gen_random_uuid(),
