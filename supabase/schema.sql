@@ -13,23 +13,15 @@ create table if not exists public.user_role_master (
     id uuid primary key default gen_random_uuid(),
     username text unique not null,
     display_name text not null,
-    role text not null check (
-        role in (
-            'VENDOR',
-            'WH',
-            'GAC_COMPLIANCE',
-            'GAC_PO',
-            'ACCOUNTS',
-            'CBO_OFFICE',
-            'CBO_OFFICER',
-            'ADMIN'
-        )
-    ),
+    role text not null check (role in ('VENDOR','WH','GAC_COMPLIANCE','GAC_PO','ACCOUNTS','CBO_OFFICE','CBO_OFFICER','ADMIN')),
     vendor_id uuid,
     wh_scope text,
     auth_user_id uuid,
     created_at timestamptz not null default now()
 );
+
+-- Upgrade an already-created older table before indexes reference the new column.
+alter table public.user_role_master add column if not exists auth_user_id uuid;
 
 create unique index if not exists user_role_master_auth_user_id_uidx
     on public.user_role_master(auth_user_id)
@@ -41,16 +33,7 @@ create unique index if not exists user_role_master_auth_user_id_uidx
 
 create table if not exists public.master_data (
     id uuid primary key default gen_random_uuid(),
-    head text not null check (
-        head in (
-            'COMPANY',
-            'PROJECT_LOCATION',
-            'VENDOR',
-            'CONTRACT_TYPE',
-            'SERVICE_TYPE',
-            'SUB_CATEGORY'
-        )
-    ),
+    head text not null check (head in ('COMPANY','PROJECT_LOCATION','VENDOR','CONTRACT_TYPE','SERVICE_TYPE','SUB_CATEGORY')),
     value text not null,
     company text,
     project_location text,
@@ -68,13 +51,7 @@ create table if not exists public.invoice_records (
     company text not null,
     project_location text not null,
     vendor text not null,
-    contract_type text not null check (
-        contract_type in (
-            'Commercial',
-            'Minimum Wages',
-            'Others'
-        )
-    ),
+    contract_type text not null check (contract_type in ('Commercial','Minimum Wages','Others')),
     service_type text not null,
     sub_category text,
     inv_no text not null,
@@ -87,6 +64,8 @@ create table if not exists public.invoice_records (
     latest_remarks text,
     last_action_at timestamptz
 );
+
+alter table public.invoice_records add column if not exists last_action_at timestamptz;
 
 -- ============================================================
 -- 4. DOCUMENT RECORDS
@@ -103,6 +82,8 @@ create table if not exists public.document_records (
     version_no integer not null default 1,
     is_current boolean not null default true
 );
+
+alter table public.document_records add column if not exists is_current boolean not null default true;
 
 -- ============================================================
 -- 5. WORKFLOW HISTORY
@@ -195,92 +176,60 @@ alter table public.tat_calculation_structure enable row level security;
 -- ============================================================
 
 drop policy if exists "P2V2 authenticated users read user roles" on public.user_role_master;
-create policy "P2V2 authenticated users read user roles"
-on public.user_role_master for select to authenticated using (true);
+create policy "P2V2 authenticated users read user roles" on public.user_role_master for select to authenticated using (true);
 
 drop policy if exists "P2V2 authenticated users read master data" on public.master_data;
-create policy "P2V2 authenticated users read master data"
-on public.master_data for select to authenticated using (true);
+create policy "P2V2 authenticated users read master data" on public.master_data for select to authenticated using (true);
 
 drop policy if exists "P2V2 authenticated users read invoices" on public.invoice_records;
-create policy "P2V2 authenticated users read invoices"
-on public.invoice_records for select to authenticated using (true);
+create policy "P2V2 authenticated users read invoices" on public.invoice_records for select to authenticated using (true);
 
 drop policy if exists "P2V2 authenticated users insert invoices" on public.invoice_records;
-create policy "P2V2 authenticated users insert invoices"
-on public.invoice_records for insert to authenticated with check (true);
+create policy "P2V2 authenticated users insert invoices" on public.invoice_records for insert to authenticated with check (true);
 
 drop policy if exists "P2V2 authenticated users update invoices" on public.invoice_records;
-create policy "P2V2 authenticated users update invoices"
-on public.invoice_records for update to authenticated using (true) with check (true);
+create policy "P2V2 authenticated users update invoices" on public.invoice_records for update to authenticated using (true) with check (true);
 
 drop policy if exists "P2V2 authenticated users read documents" on public.document_records;
-create policy "P2V2 authenticated users read documents"
-on public.document_records for select to authenticated using (true);
+create policy "P2V2 authenticated users read documents" on public.document_records for select to authenticated using (true);
 
 drop policy if exists "P2V2 authenticated users insert documents" on public.document_records;
-create policy "P2V2 authenticated users insert documents"
-on public.document_records for insert to authenticated with check (true);
+create policy "P2V2 authenticated users insert documents" on public.document_records for insert to authenticated with check (true);
 
 drop policy if exists "P2V2 authenticated users read workflow history" on public.workflow_history;
-create policy "P2V2 authenticated users read workflow history"
-on public.workflow_history for select to authenticated using (true);
+create policy "P2V2 authenticated users read workflow history" on public.workflow_history for select to authenticated using (true);
 
 drop policy if exists "P2V2 authenticated users insert workflow history" on public.workflow_history;
-create policy "P2V2 authenticated users insert workflow history"
-on public.workflow_history for insert to authenticated with check (true);
+create policy "P2V2 authenticated users insert workflow history" on public.workflow_history for insert to authenticated with check (true);
 
 drop policy if exists "P2V2 authenticated users read PR PO UTR" on public.pr_po_utr;
-create policy "P2V2 authenticated users read PR PO UTR"
-on public.pr_po_utr for select to authenticated using (true);
+create policy "P2V2 authenticated users read PR PO UTR" on public.pr_po_utr for select to authenticated using (true);
 
 drop policy if exists "P2V2 authenticated users insert PR PO UTR" on public.pr_po_utr;
-create policy "P2V2 authenticated users insert PR PO UTR"
-on public.pr_po_utr for insert to authenticated with check (true);
+create policy "P2V2 authenticated users insert PR PO UTR" on public.pr_po_utr for insert to authenticated with check (true);
 
 drop policy if exists "P2V2 authenticated users update PR PO UTR" on public.pr_po_utr;
-create policy "P2V2 authenticated users update PR PO UTR"
-on public.pr_po_utr for update to authenticated using (true) with check (true);
+create policy "P2V2 authenticated users update PR PO UTR" on public.pr_po_utr for update to authenticated using (true) with check (true);
 
 drop policy if exists "P2V2 authenticated users read TAT" on public.tat_calculation_structure;
-create policy "P2V2 authenticated users read TAT"
-on public.tat_calculation_structure for select to authenticated using (true);
+create policy "P2V2 authenticated users read TAT" on public.tat_calculation_structure for select to authenticated using (true);
 
 drop policy if exists "P2V2 authenticated users insert TAT" on public.tat_calculation_structure;
-create policy "P2V2 authenticated users insert TAT"
-on public.tat_calculation_structure for insert to authenticated with check (true);
+create policy "P2V2 authenticated users insert TAT" on public.tat_calculation_structure for insert to authenticated with check (true);
 
 drop policy if exists "P2V2 authenticated users update TAT" on public.tat_calculation_structure;
-create policy "P2V2 authenticated users update TAT"
-on public.tat_calculation_structure for update to authenticated using (true) with check (true);
+create policy "P2V2 authenticated users update TAT" on public.tat_calculation_structure for update to authenticated using (true) with check (true);
 
 -- ============================================================
 -- 11. CONTRACT / SERVICE VALIDATION
 -- ============================================================
 
-create or replace function public.p2v2_validate_contract_service(
-    p_contract_type text,
-    p_service_type text
-)
-returns boolean
-language plpgsql
-immutable
-as $$
+create or replace function public.p2v2_validate_contract_service(p_contract_type text, p_service_type text)
+returns boolean language plpgsql immutable as $$
 begin
-    if p_contract_type = 'Others' then
-        return true;
-    end if;
-
-    if p_service_type = 'Manpower'
-       and p_contract_type in ('Commercial', 'Minimum Wages') then
-        return true;
-    end if;
-
-    if p_service_type in ('Housekeeping', 'Security')
-       and p_contract_type = 'Minimum Wages' then
-        return true;
-    end if;
-
+    if p_contract_type = 'Others' then return true; end if;
+    if p_service_type = 'Manpower' and p_contract_type in ('Commercial', 'Minimum Wages') then return true; end if;
+    if p_service_type in ('Housekeeping', 'Security') and p_contract_type = 'Minimum Wages' then return true; end if;
     return false;
 end;
 $$;
@@ -289,30 +238,15 @@ $$;
 -- 12. APPLY CONTRACT / SERVICE VALIDATION
 -- ============================================================
 
-alter table public.invoice_records
-    drop constraint if exists invoice_contract_service_valid;
-
-alter table public.invoice_records
-    add constraint invoice_contract_service_valid
-    check (
-        public.p2v2_validate_contract_service(
-            contract_type,
-            service_type
-        )
-    );
+alter table public.invoice_records drop constraint if exists invoice_contract_service_valid;
+alter table public.invoice_records add constraint invoice_contract_service_valid check (public.p2v2_validate_contract_service(contract_type, service_type));
 
 -- ============================================================
 -- 13. VALID WORKFLOW ROUTES
 -- ============================================================
 
-create or replace function public.p2v2_valid_route(
-    p_from_stage text,
-    p_to_stage text
-)
-returns boolean
-language sql
-immutable
-as $$
+create or replace function public.p2v2_valid_route(p_from_stage text, p_to_stage text)
+returns boolean language sql immutable as $$
     select
         (p_from_stage = 'WH' and p_to_stage = 'VENDOR')
         or (p_from_stage = 'VENDOR' and p_to_stage = 'WH')
