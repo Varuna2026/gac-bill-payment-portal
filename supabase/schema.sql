@@ -190,51 +190,68 @@ alter table public.tat_calculation_structure enable row level security;
 
 -- ============================================================
 -- 10. INITIAL AUTHENTICATED-USER POLICIES
+-- PostgreSQL does not support CREATE POLICY IF NOT EXISTS.
+-- Drop/recreate makes this installation script safely rerunnable.
 -- ============================================================
 
-create policy if not exists "P2V2 authenticated users read user roles"
+drop policy if exists "P2V2 authenticated users read user roles" on public.user_role_master;
+create policy "P2V2 authenticated users read user roles"
 on public.user_role_master for select to authenticated using (true);
 
-create policy if not exists "P2V2 authenticated users read master data"
+drop policy if exists "P2V2 authenticated users read master data" on public.master_data;
+create policy "P2V2 authenticated users read master data"
 on public.master_data for select to authenticated using (true);
 
-create policy if not exists "P2V2 authenticated users read invoices"
+drop policy if exists "P2V2 authenticated users read invoices" on public.invoice_records;
+create policy "P2V2 authenticated users read invoices"
 on public.invoice_records for select to authenticated using (true);
 
-create policy if not exists "P2V2 authenticated users insert invoices"
+drop policy if exists "P2V2 authenticated users insert invoices" on public.invoice_records;
+create policy "P2V2 authenticated users insert invoices"
 on public.invoice_records for insert to authenticated with check (true);
 
-create policy if not exists "P2V2 authenticated users update invoices"
+drop policy if exists "P2V2 authenticated users update invoices" on public.invoice_records;
+create policy "P2V2 authenticated users update invoices"
 on public.invoice_records for update to authenticated using (true) with check (true);
 
-create policy if not exists "P2V2 authenticated users read documents"
+drop policy if exists "P2V2 authenticated users read documents" on public.document_records;
+create policy "P2V2 authenticated users read documents"
 on public.document_records for select to authenticated using (true);
 
-create policy if not exists "P2V2 authenticated users insert documents"
+drop policy if exists "P2V2 authenticated users insert documents" on public.document_records;
+create policy "P2V2 authenticated users insert documents"
 on public.document_records for insert to authenticated with check (true);
 
-create policy if not exists "P2V2 authenticated users read workflow history"
+drop policy if exists "P2V2 authenticated users read workflow history" on public.workflow_history;
+create policy "P2V2 authenticated users read workflow history"
 on public.workflow_history for select to authenticated using (true);
 
-create policy if not exists "P2V2 authenticated users insert workflow history"
+drop policy if exists "P2V2 authenticated users insert workflow history" on public.workflow_history;
+create policy "P2V2 authenticated users insert workflow history"
 on public.workflow_history for insert to authenticated with check (true);
 
-create policy if not exists "P2V2 authenticated users read PR PO UTR"
+drop policy if exists "P2V2 authenticated users read PR PO UTR" on public.pr_po_utr;
+create policy "P2V2 authenticated users read PR PO UTR"
 on public.pr_po_utr for select to authenticated using (true);
 
-create policy if not exists "P2V2 authenticated users insert PR PO UTR"
+drop policy if exists "P2V2 authenticated users insert PR PO UTR" on public.pr_po_utr;
+create policy "P2V2 authenticated users insert PR PO UTR"
 on public.pr_po_utr for insert to authenticated with check (true);
 
-create policy if not exists "P2V2 authenticated users update PR PO UTR"
+drop policy if exists "P2V2 authenticated users update PR PO UTR" on public.pr_po_utr;
+create policy "P2V2 authenticated users update PR PO UTR"
 on public.pr_po_utr for update to authenticated using (true) with check (true);
 
-create policy if not exists "P2V2 authenticated users read TAT"
+drop policy if exists "P2V2 authenticated users read TAT" on public.tat_calculation_structure;
+create policy "P2V2 authenticated users read TAT"
 on public.tat_calculation_structure for select to authenticated using (true);
 
-create policy if not exists "P2V2 authenticated users insert TAT"
+drop policy if exists "P2V2 authenticated users insert TAT" on public.tat_calculation_structure;
+create policy "P2V2 authenticated users insert TAT"
 on public.tat_calculation_structure for insert to authenticated with check (true);
 
-create policy if not exists "P2V2 authenticated users update TAT"
+drop policy if exists "P2V2 authenticated users update TAT" on public.tat_calculation_structure;
+create policy "P2V2 authenticated users update TAT"
 on public.tat_calculation_structure for update to authenticated using (true) with check (true);
 
 -- ============================================================
