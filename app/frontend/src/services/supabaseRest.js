@@ -1,6 +1,8 @@
 const storagePrefix = 'p2v2_rd_'
 
-export const supabaseConfigured = false
+// Kept true so the existing App shell continues into the portal; all reads/writes
+// below are local browser storage and do not contact Supabase.
+export const supabaseConfigured = true
 export const RD_MODE = true
 
 const seed = {
