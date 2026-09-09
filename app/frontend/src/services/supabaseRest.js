@@ -1,27 +1,17 @@
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || import.meta.env.SUPABASE_URL
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.SUPABASE_ANON_KEY
 
-const headers = () => ({ apikey: SUPABASE_KEY || '', Authorization: `Bearer ${SUPABASE_KEY || ''}`, 'Content-Type': 'application/json' })
-
+const headers = (token = SUPABASE_KEY) => ({ apikey: SUPABASE_KEY || '', Authorization: `Bearer ${token || ''}`, 'Content-Type': 'application/json' })
 export const supabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_KEY)
 
-export async function selectRows(table, query = '') {
-  if (!supabaseConfigured) return []
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*${query}`, { headers: headers() })
-  if (!response.ok) throw new Error(`Supabase request failed: ${response.status}`)
-  return response.json()
+const request = async (path, options = {}, token = SUPABASE_KEY) => {
+ if (!supabaseConfigured) throw new Error('Supabase is not configured')
+ const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...options, headers: { ...headers(token), ...(options.headers || {}) } })
+ if (!response.ok) { const text = await response.text(); throw new Error(text || `Supabase request failed: ${response.status}`) }
+ return response.status === 204 ? [] : response.json()
 }
 
-export async function insertRows(table, rows) {
-  if (!supabaseConfigured) throw new Error('Supabase is not configured')
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, { method: 'POST', headers: { ...headers(), Prefer: 'return=representation' }, body: JSON.stringify(rows) })
-  if (!response.ok) throw new Error(`Supabase insert failed: ${response.status}`)
-  return response.json()
-}
-
-export async function updateRows(table, query, values) {
-  if (!supabaseConfigured) throw new Error('Supabase is not configured')
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, { method: 'PATCH', headers: { ...headers(), Prefer: 'return=representation' }, body: JSON.stringify(values) })
-  if (!response.ok) throw new Error(`Supabase update failed: ${response.status}`)
-  return response.json()
-}
+export async function selectRows(table, query = '', token) { return request(`${table}?select=*${query}`, {}, token) }
+export async function insertRows(table, rows, token) { return request(table, { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(rows) }, token) }
+export async function updateRows(table, query, values, token) { return request(`${table}?${query}`, { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(values) }, token) }
+export async function deleteRows(table, query, token) { return request(`${table}?${query}`, { method: 'DELETE', headers: { Prefer: 'return=minimal' } }, token) }
