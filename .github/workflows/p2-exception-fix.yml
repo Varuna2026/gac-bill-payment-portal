@@ -10,32 +10,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply P2 exception and Accounts rules
+      - name: Finalize P2 exception routing
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('app/frontend/src/App.jsx')
           s=p.read_text()
-          old="const scopedData=role===ROLES.WH?data.filter(x=>(profile.warehouses||[]).includes(x.warehouse)):data"
-          new="const scopedData=role===ROLES.WH?data.filter(x=>(profile.warehouses||[]).includes(x.warehouse)):role===ROLES.VENDOR?data.filter(x=>mapping.some(m=>m.organization===x.company&&m.warehouse===x.warehouse&&m.project_location===x.project_location&&m.vendor===x.vendor)):data"
-          assert old in s, 'scopedData anchor missing'
+          # Vendor Re-Submitted must accept Query, Return and Reject outcomes.
+          old="x.current_stage==='VENDOR'&&x.current_status===WORKFLOW_STATUS.RETURNED&&<button"
+          new="x.current_stage==='VENDOR'&&[WORKFLOW_STATUS.QUERY,WORKFLOW_STATUS.RETURNED,WORKFLOW_STATUS.REJECTED].includes(x.current_status)&&<button"
+          assert old in s, 'Vendor resubmit condition missing'
           s=s.replace(old,new,1)
-          old="const currentActionData=baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK].includes(x.current_status))"
-          new="const currentActionData=baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK,...(role===ROLES.ACCOUNTS?[WORKFLOW_STATUS.APPROVED_FOR_PAYMENT]:[])].includes(x.current_status))"
-          assert old in s, 'currentActionData anchor missing'
+          # GAC Compliance can Query/Return/Reject to the allowed Vendor/WH destinations.
+          old="GAC_COMPLIANCE:['VENDOR','WH']"
+          if old not in s:
+              anchor="const choices={WH:['VENDOR'],GAC_PO:['VENDOR','WH'],ACCOUNTS:['GAC_PO'],"
+              assert anchor in s, 'Route choices anchor missing'
+              s=s.replace(anchor,"const choices={WH:['VENDOR'],GAC_COMPLIANCE:['VENDOR','WH'],GAC_PO:['VENDOR','WH'],ACCOUNTS:['GAC_PO'],",1)
+          old="const actionsByRole={WH:['Accept','Query','Return','Reject','Resubmit to GAC Compliance'],GAC_COMPLIANCE:['Accept','Compliance Check OK','Compliance Check Rejected']"
+          new="const actionsByRole={WH:['Accept','Query','Return','Reject','Resubmit to GAC Compliance'],GAC_COMPLIANCE:['Accept','Query','Return','Reject','Compliance Check OK','Compliance Check Rejected']"
+          if old in s: s=s.replace(old,new,1)
+          # CBO Office routes exceptions only to WH, GAC PO or Accounts.
+          old="CBO_OFFICE:['ACCOUNTS','GAC_PO','WH','VENDOR']"
+          new="CBO_OFFICE:['ACCOUNTS','GAC_PO','WH']"
+          assert old in s, 'CBO Office route list missing'
           s=s.replace(old,new,1)
-          old="if(active==='Query / Returned / Rejected') return currentExceptionData"
-          new="if(active==='Re-Submitted'&&role===ROLES.VENDOR) return baseVisible.filter(x=>x.current_stage==='VENDOR'&&[WORKFLOW_STATUS.QUERY,WORKFLOW_STATUS.RETURNED,WORKFLOW_STATUS.REJECTED].includes(x.current_status))\n   if(active==='Query / Returned / Rejected'&&role!==ROLES.VENDOR) return currentExceptionData"
-          assert old in s, 'exception tab anchor missing'
+          # Keep CBO Officer able to return to any earlier operational stage.
+          # Add generic Query/Return/Reject controls to GAC Compliance's special action panel.
+          old="</select></>:<button className=\"primary\" onClick={()=>onAction(x,'Accept')}>Accept</button>}</div>};if(role===ROLES.ACCOUNTS"
+          new="</select></>:<button className=\"primary\" onClick={()=>onAction(x,'Accept')}>Accept</button>}<button onClick={()=>onAction(x,'Query')}>Query</button><button onClick={()=>onAction(x,'Return')}>Return</button><button onClick={()=>onAction(x,'Reject')}>Reject</button></div>};if(role===ROLES.ACCOUNTS"
+          assert old in s, 'GAC Compliance action panel anchor missing'
           s=s.replace(old,new,1)
-          old="if(active==='Approved') return baseVisible.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT)"
-          new="if(active==='Approved') return baseVisible.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT)\n   if(active==='Paid') return baseVisible.filter(x=>x.current_status===WORKFLOW_STATUS.PAID)"
-          assert old in s, 'Approved tab anchor missing'
-          s=s.replace(old,new,1)
-          old2="if(acts.length&&x.current_stage===roleStage[role])return <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{acts.filter(a=>a!=='Resubmit to GAC Compliance'||x.current_status===WORKFLOW_STATUS.RETURNED).map(a=>"
-          new2="if(role===ROLES.ACCOUNTS&&x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT&&x.current_stage===roleStage[role])return <div style={{display:'flex',gap:6,flexWrap:'wrap'}}><button onClick={()=>onAction(x,'Paid')}>Paid</button></div>;if(acts.length&&x.current_stage===roleStage[role])return <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{acts.filter(a=>a!=='Resubmit to GAC Compliance'||x.current_status===WORKFLOW_STATUS.RETURNED).map(a=>"
-          assert old2 in s, 'Accounts action anchor missing'
-          s=s.replace(old2,new2,1)
           p.write_text(s)
           PY
       - name: Commit fix
@@ -43,5 +48,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app/frontend/src/App.jsx
-          git commit -m 'Implement P2 exception re-submit and payment routing' || exit 0
+          git commit -m 'Finalize P2 exception routing rules' || exit 0
           git push
