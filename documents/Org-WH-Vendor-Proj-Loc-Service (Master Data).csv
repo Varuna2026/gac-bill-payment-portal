@@ -1,0 +1,95 @@
+﻿Sl No,Company,Warehouse,Project & Location,Vendor Name,Service Type
+1,VWPL,Apollo Ahmedabad,Apollo Ahmedabad,Bhupender Ent,Manpower
+2,VWPL,Apollo Tepla,RDC/JIT,Rudransh Enterprises,Manpower
+3,VWPL,Apollo Tepla,RDC/JIT,Ravi Singh,Manpower
+4,VWPL,Apollo Tepla,RDC/JIT,Jyoti Enterprises,Manpower
+5,VWPL,Apollo Tepla,RDC/JIT,Jyoti Enterprises,Housekeeping
+6,VWPL,Apollo Tepla,Apollo Tepla,Immigration Security Services Pvt Ltd,Security
+7,VWPL,Apollo Cuttack,Apollo Cuttack,GDX,Security
+8,VWPL,Apollo Cuttack,Apollo Cuttack,Sahoo Labour,Manpower
+9,VWPL,Apollo Indore,Apollo Indore,Pooja Security Services,Security
+10,VWPL,Apollo Indore,Apollo Indore,Laxmi Manpower Supply,Manpower
+11,VWPL,Apollo Indore,Apollo Indore,Sisodiya Labour Supply,Housekeeping
+12,VWPL,Apollo Kolkata,Apollo Kolkata,Apex Services,Manpower
+13,VWPL,Apollo Kolkata,Apollo Kolkata,Apex Services,Housekeeping
+14,VWPL,Apollo Kolkata,Apollo Kolkata,GDX,Security
+15,VIL,Jharkhand,Jharkhand,Apex Services,Manpower
+16,VWPL,JK Sonauli,JK Sonauli,Lion Security,Manpower
+17,VWPL,JK Sonauli,JK Sonauli,Lion Security,Housekeeping
+18,VWPL,JK Sonauli,JK Sonauli,Peregrine Security,Security
+19,VWPL,Minda-Rudrapur,Minda-Rudrapur,R.H Enterprises,Manpower
+20,VWPL,Minda-Rudrapur,Minda-Rudrapur,S R Mandal Service,Manpower
+21,VWPL,Minda-Rudrapur,Minda-Rudrapur,Utkarsh 1 Enterprises,Manpower
+22,VWPL,Minda-Rudrapur,Minda-Rudrapur,Utkarsh 1 Enterprises,Housekeeping
+23,VWPL,Minda-Rudrapur,Minda-Rudrapur,SIS,Security
+24,VWPL,MRF Becharaji,MRF Becharaji,Bhupender Ent,Manpower
+25,VWPL,MRF Becharaji,MRF Becharaji,Jai Mataji Enterprise,Manpower
+26,VWPL,MRF Lucknow,MRF Lucknow,AMAR Enterprises,Manpower
+27,VWPL,MUF Punjab,MUF Punjab,Immigration Security Services Pvt Ltd,Security
+27,VWPL,MUF Punjab,Herbalife-Punjab,Immigration Security Services Pvt Ltd,Security
+27,VWPL,MUF Punjab,Herbalife (FC)-Punjab,Immigration Security Services Pvt Ltd,Security
+27,VWPL,MUF Punjab,Campus-Punjab,Immigration Security Services Pvt Ltd,Security
+28,VWPL,MUF Punjab,MUF Punjab,Caliber,Housekeeping
+28,VWPL,MUF Punjab,Herbalife-Punjab,Caliber,Housekeeping
+28,VWPL,MUF Punjab,Herbalife (FC)-Punjab,Caliber,Housekeeping
+28,VWPL,MUF Punjab,Campus-Punjab,Caliber,Housekeeping
+29,VWPL,MUF Punjab,MUF Punjab,Standard Management Services,Housekeeping
+30,VWPL,MUF Punjab,Campus-Punjab,Standard Management Services,Manpower
+30,VWPL,MUF Punjab,Herbalife-Punjab,Standard Management Services,Manpower
+31,VWPL,MUF Punjab,Herbalife-Punjab,TFM Service Pvt Ltd,Manpower
+31,VWPL,MUF Punjab,Campus-Punjab,TFM Service Pvt Ltd,Manpower
+31,VWPL,MUF Punjab,MUF Punjab,TFM Service Pvt Ltd,Manpower
+31,VWPL,MUF Punjab,Aishwariya-Punjab,TFM Service Pvt Ltd,Manpower
+32,VWPL,MUF Punjab,Campus-Punjab,Rudransh Enterprises,Manpower
+32,VWPL,MUF Punjab,Herbalife-Punjab,Rudransh Enterprises,Manpower
+33,VWPL,MUF Punjab,Campus-Punjab,Jyoti Manpower Solutions,Manpower
+33,VWPL,MUF Punjab,Herbalife-Punjab,Jyoti Manpower Solutions,Manpower
+33,VWPL,MUF Punjab,Herbalife (FC)-Punjab,Jyoti Manpower Solutions,Manpower
+33,VWPL,MUF Punjab,Aishwariya-Punjab,Jyoti Manpower Solutions,Manpower
+33,VWPL,MUF Punjab,Danone Punjab,Jyoti Manpower Solutions,Manpower
+34,VWPL,MUF-Kichha,MUF-Kichha,Pari Enterprises,Manpower
+35,VWPL,MUF-Kichha,MUF-Kichha,R.H Enterprises,Manpower
+36,VWPL,MUF-Kichha,MUF-Kichha,Utkarsh Enterprise,Manpower
+37,VWPL,MUF-Kichha,MUF-Kichha,SM Enterprises,Manpower
+38,VWPL,MUF-Kichha,MUF-Kichha,Service Master Clean,Housekeeping
+39,VWPL,MUF-Kichha,MUF-Kichha,SIS,Security
+40,VWPL,Spar Tauru,Spar Tauru,Aegeus Management,Manpower
+41,VWPL,Spar Tauru,Spar Tauru,A.G Enterprises,Manpower
+42,VWPL,Spar Tauru,Spar Tauru,A.G Enterprises,Housekeeping
+43,VWPL,Spar Tauru,Spar Tauru,Peregrine Security,Security
+44,VWPL,VMM Bangalore,VMM Bangalore,NRE Mehta Group,Manpower
+45,VWPL,VMM Bangalore,VMM Bangalore,A.M Manpower,Manpower
+46,VWPL,VMM Bangalore,VMM Bangalore,A.M Manpower,Housekeeping
+47,VWPL,VMM Bangalore,VMM Bangalore,GDX,Security
+48,VWPL,VMM Hyderabad,VMM Hyderabad,GDX,Security
+49,VWPL,VMM Raipur,VMM Raipur,Jyoti Enterprises,Manpower
+50,VWPL,VMM Raipur,VMM Raipur,Jyoti Enterprises,Housekeeping
+51,VWPL,VMM Raipur,VMM Raipur,Pooja Security Services,Security
+52,VWPL,Wipro-Haridwar,Wipro-Haridwar,Utkarsh 1 Enterprises,Manpower
+53,VWPL,JK-Haridwar,JK-Haridwar,Shri Ram Associates,Manpower
+54,VWPL,Voltas-Rudrapur,Voltas-Rudrapur,Utkarsh 1 Enterprises,Manpower
+55,VWPL,Voltas-Rudrapur,Voltas-Rudrapur,R.H Enterprises,Manpower
+56,VWPL,Voltas-Rudrapur,Voltas-Rudrapur,S R Mandal Service,Housekeeping
+57,VWPL,Voltas-Rudrapur,Voltas-Rudrapur,Ansh Enterprises,Manpower
+58,VWPL,Voltas-Rudrapur,Voltas-Rudrapur,Immigration Security Services Pvt Ltd,Security
+59,VWPL,Voltas-Rudrapur,Voltas-Rudrapur,Utkarsh 1 Enterprises,Manpower
+60,VWPL,Voltas-Rudrapur,Voltas-Rudrapur,Utkarsh Enterprise,Manpower
+61,VIL,Ambala Fleet,Ambala Fleet,Rudransh Enterprises,Housekeeping
+62,VIL,Ambala Fleet,Ambala Fleet,Immigration Security Services Pvt Ltd,Security
+63,VIL,Bareilly Fleet,Bareilly Fleet,Immigration Security Services Pvt Ltd,Security
+64,VIL,Bareilly Fleet,Bareilly Fleet,Immigration Security Services Pvt Ltd,Housekeeping
+65,VIL,Corporate office,Corporate office,Goose Service,Housekeeping
+66,VIL,Corporate office,Corporate office,Goose Service,Machine
+67,VIL,Corporate office,Corporate office,Peregrine Security,Security
+68,VIL,Dharuhera Fleet,Dharuhera Fleet,Peregrine Security,Security
+69,VIL,Hyderabad Fleet,Hyderabad Fleet,Eagle Security ,Security
+70,VIL,Kolkata Fleet,Kolkata Fleet,GDX,Security
+71,VIL,South City-64,South City-64,Peregrine Security,Security
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
+,,,,,
