@@ -4,9 +4,10 @@ P2V2 implementation for the GAC Vendor Invoice / Bill Payment Portal.
 
 ## Architecture
 - GitHub: permanent source code and version control.
-- Own-server backend: runtime API, database records and uploaded invoice/supporting documents.
-- React + Vite: portal frontend.
-- Runtime storage is not committed to GitHub.
+- R&D database: Git-controlled seed/master data with browser persistence for testing.
+- Own server during R&D: document storage only for uploaded invoice/supporting documents.
+- Live production database: PostgreSQL (or the selected production database) on the own server.
+- Live production documents: protected storage on the own server.
 - Production secrets and server credentials are never committed to GitHub.
 
 ## Master selection hierarchy
@@ -32,15 +33,15 @@ npm install
 npm run dev
 ```
 
-Set `VITE_API_BASE_URL` in `app/frontend/.env` using `.env.example`. During R&D it points to the own-server backend (default `http://localhost:4000`).
+Set `VITE_API_BASE_URL` in `app/frontend/.env` using `.env.example`. During R&D it points to the own-server document-storage service (default `http://localhost:4000`).
 
-## Own-server backend
+## Own-server document storage
 ```bash
 cd app/backend
 npm start
 ```
 
-The backend stores runtime JSON records under `app/backend/server-data/` and uploaded files under `app/backend/server-data/uploads/`. These runtime directories must remain outside Git tracking in real deployments. This is the initial R&D storage adapter and can later be replaced by PostgreSQL/another server database without changing the GitHub source-of-truth model.
+The own-server service stores uploaded invoice/supporting documents only. It does not store P2 users, masters, invoice records, workflow history, PR/PO/UTR or any other database records. For production, move the database to PostgreSQL (or the selected database) on the own server and keep documents in protected server storage.
 
 ## Important P2V2 rules
 - Inv No is required; Submission ID is not required.
