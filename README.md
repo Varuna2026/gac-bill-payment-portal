@@ -3,16 +3,24 @@
 P2V2 implementation for the GAC Vendor Invoice / Bill Payment Portal.
 
 ## Architecture
-- GitHub: source code and version control.
+- GitHub: permanent source code and version control.
+- Own-server backend: runtime API, database records and uploaded invoice/supporting documents.
 - React + Vite: portal frontend.
-- Supabase PostgreSQL: users, masters, invoices, documents, workflow history, PR/PO/UTR and TAT records.
-- Supabase Storage: actual invoice/supporting files.
+- Runtime storage is not committed to GitHub.
+- Production secrets and server credentials are never committed to GitHub.
 
-## Workflow
-1. WH → Vendor → WH → GAC Compliance → GAC PO → Accounts → CBO Office → CBO Officer → Accounts for Payment → PAID
-2. Vendor (Others) → WH → GAC Compliance → GAC PO → Accounts → CBO Office → CBO Officer → Accounts for Payment → PAID
+## Master selection hierarchy
+**Organization (VIL/VWPL) → Warehouse → Project & Location → Vendor → Service Type → Sub Service**
 
-Warehouse (PR) is the Warehouse role. Accounts for Payment is the same Accounts role. Admin is a separate GOD/Super Admin role.
+RDC and JIT are separate Projects. Service and Sub Service choices must be limited to the actual mapped master data; unrelated WH/vendor/service combinations must not be exposed.
+
+## Bill submission routes
+1. **WH → Vendor → WH → GAC (Compliance) → GAC (PO) → Accounts → CBO Office → CBO Officer → Accounts (PAID/UTR)**
+2. **Vendor → WH → GAC (Compliance) → GAC (PO) → Accounts → CBO Office → CBO Officer → Accounts (PAID/UTR)**
+
+GAC (Compliance) and GAC (PO) are separate entities. GAC (Compliance) checks/accepts and completes compliance processing; **PO Mapping is performed only by GAC (PO)**. Final Accounts records PAID and UTR after CBO Officer approval.
+
+Warehouse (PR) is the Warehouse role. Accounts for Payment is the same Accounts role. Admin is the unrestricted Super Admin/GOD role.
 
 ## Roles
 Vendor, Warehouse, GAC — Compliance, GAC — PO, Accounts, CBO Office, CBO Officer, Admin / GOD.
@@ -24,10 +32,15 @@ npm install
 npm run dev
 ```
 
-For Supabase REST integration, create `app/frontend/.env` from `.env.example` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+Set `VITE_API_BASE_URL` in `app/frontend/.env` using `.env.example`. During R&D it points to the own-server backend (default `http://localhost:4000`).
 
-## Supabase setup
-Run `supabase/schema.sql` in the Supabase SQL editor, then create the `invoice-documents` Storage bucket. Production authentication, RLS policies and email provider credentials must be configured in the Supabase project; secrets are never committed to GitHub.
+## Own-server backend
+```bash
+cd app/backend
+npm start
+```
+
+The backend stores runtime JSON records under `app/backend/server-data/` and uploaded files under `app/backend/server-data/uploads/`. These runtime directories must remain outside Git tracking in real deployments. This is the initial R&D storage adapter and can later be replaced by PostgreSQL/another server database without changing the GitHub source-of-truth model.
 
 ## Important P2V2 rules
 - Inv No is required; Submission ID is not required.
