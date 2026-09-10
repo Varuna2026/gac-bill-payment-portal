@@ -1,11 +1,10 @@
 import { ROLES } from './roles'
 
-// P2 universal dashboard: the operational workflow is presented through the same
-// standard tab structure for every role. Role-specific exceptions are intentionally
-// limited to CBO Officer (Approved) and Accounts (Paid), while Vendor/WH remain
-// scoped to their mapped records.
+// P2 universal dashboard. Exception handling is role-specific:
+// Vendor receives all later-stage Query/Return/Reject items in Re-Submitted.
+// Accounts retains Paid for final payment processing.
 export const NAVIGATION_BY_ROLE = {
-  [ROLES.VENDOR]: ['Dashboard', 'Pending for Action', 'Received', 'Under Process', 'Submitted', 'Query / Returned / Rejected', 'History Record', 'Reports'],
+  [ROLES.VENDOR]: ['Dashboard', 'Pending for Action', 'Received', 'Under Process', 'Submitted', 'Re-Submitted', 'History Record', 'Reports'],
   [ROLES.WH]: ['Dashboard', 'Pending for Action', 'Received', 'Under Process', 'Submitted', 'Query / Returned / Rejected', 'History Record', 'Reports'],
   [ROLES.GAC_COMPLIANCE]: ['Dashboard', 'Pending for Action', 'Received', 'Under Process', 'Submitted', 'Query / Returned / Rejected', 'History Record', 'Reports'],
   [ROLES.GAC_PO]: ['Dashboard', 'Pending for Action', 'Received', 'Under Process', 'Submitted', 'Query / Returned / Rejected', 'History Record', 'Reports'],
