@@ -1,12 +1,16 @@
 import { ROLES } from './roles'
 
+// P2 universal dashboard: the operational workflow is presented through the same
+// standard tab structure for every role. Role-specific exceptions are intentionally
+// limited to CBO Officer (Approved) and Accounts (Paid), while Vendor/WH remain
+// scoped to their mapped records.
 export const NAVIGATION_BY_ROLE = {
-  [ROLES.VENDOR]: ['Dashboard', 'Pending for Action', 'Submit Invoice', 'Submitted', 'Query / Returned / Rejected', 'Approved', 'History / Records', 'Reports'],
-  [ROLES.WH]: ['Dashboard', 'Upload Documents', 'Pending for Action', 'Submitted', 'Query / Returned / Rejected', 'History / Records', 'Reports'],
-  [ROLES.GAC_COMPLIANCE]: ['Dashboard', 'Pending for Action', 'Accepted', 'Under Compliance Check', 'Compliance Checked', 'Query / Returned / Rejected', 'History / Records', 'Reports'],
-  [ROLES.GAC_PO]: ['Dashboard', 'Pending', 'Accepted', 'Query / Returned / Rejected', 'PO Mapping', 'History / Records', 'Reports'],
-  [ROLES.ACCOUNTS]: ['Dashboard', 'Submitted', 'Pending', 'Query / Returned / Rejected', 'UTR Mapping', 'History / Records', 'Reports'],
-  [ROLES.CBO_OFFICE]: ['Dashboard', 'Submitted', 'Pending', 'Query / Returned / Rejected', 'Approval / Actions', 'History / Records', 'Reports'],
-  [ROLES.CBO_OFFICER]: ['Dashboard', 'Pending for Approval', 'Approved', 'Query / Returned / Rejected', 'History / Records', 'Reports'],
+  [ROLES.VENDOR]: ['Dashboard', 'Pending for Action', 'Received', 'Under Process', 'Submitted', 'Query / Returned / Rejected', 'History Record', 'Reports'],
+  [ROLES.WH]: ['Dashboard', 'Pending for Action', 'Received', 'Under Process', 'Submitted', 'Query / Returned / Rejected', 'History Record', 'Reports'],
+  [ROLES.GAC_COMPLIANCE]: ['Dashboard', 'Pending for Action', 'Received', 'Under Process', 'Submitted', 'Query / Returned / Rejected', 'History Record', 'Reports'],
+  [ROLES.GAC_PO]: ['Dashboard', 'Pending for Action', 'Received', 'Under Process', 'Submitted', 'Query / Returned / Rejected', 'History Record', 'Reports'],
+  [ROLES.ACCOUNTS]: ['Dashboard', 'Pending for Action', 'Received', 'Under Process', 'Submitted', 'Paid', 'Query / Returned / Rejected', 'History Record', 'Reports'],
+  [ROLES.CBO_OFFICE]: ['Dashboard', 'Pending for Action', 'Received', 'Under Process', 'Submitted', 'Query / Returned / Rejected', 'History Record', 'Reports'],
+  [ROLES.CBO_OFFICER]: ['Dashboard', 'Pending for Action', 'Received', 'Under Process', 'Approved', 'Query / Returned / Rejected', 'History Record', 'Reports'],
   [ROLES.ADMIN]: ['Dashboard', 'All Invoices', 'Users & Roles', 'Master Data', 'Workflow Configuration', 'Reports', 'Audit / History', 'Impersonation'],
 }
