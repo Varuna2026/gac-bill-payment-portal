@@ -1,35 +1,23 @@
+// P2 data adapter.
+// The application database provider is intentionally kept behind this adapter.
+// The own server is NOT the database; it is used only for document storage.
+
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000').replace(/\/$/, '')
 
-// P2 R&D: GitHub stores source/version history. Runtime records and uploaded files
-// are designed to live on the own-server backend, not in the repository.
-export const supabaseConfigured = true
+// Compatibility exports retained while the database provider is finalized.
+export const supabaseConfigured = false
 export const RD_MODE = true
 
-async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, { headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }, ...options })
+async function storageRequest(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    ...options,
+  })
   const text = await response.text()
   let data = null
   try { data = text ? JSON.parse(text) : null } catch { data = text }
-  if (!response.ok) throw new Error(data?.error || `Server request failed (${response.status})`)
+  if (!response.ok) throw new Error(data?.error || `Storage request failed (${response.status})`)
   return data
-}
-
-function queryString(query = '') { return query ? `?${query.replace(/^&/, '')}` : '' }
-
-export async function selectRows(table, query = '') {
-  return request(`/api/tables/${encodeURIComponent(table)}${queryString(query)}`)
-}
-
-export async function insertRows(table, rows) {
-  return request(`/api/tables/${encodeURIComponent(table)}`, { method: 'POST', body: JSON.stringify(rows) })
-}
-
-export async function updateRows(table, query, values) {
-  return request(`/api/tables/${encodeURIComponent(table)}${queryString(query)}`, { method: 'PATCH', body: JSON.stringify(values) })
-}
-
-export async function deleteRows(table, query) {
-  return request(`/api/tables/${encodeURIComponent(table)}${queryString(query)}`, { method: 'DELETE' })
 }
 
 export async function uploadStorage(path, file) {
@@ -39,13 +27,34 @@ export async function uploadStorage(path, file) {
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
-  return request('/api/uploads', { method: 'POST', body: JSON.stringify({ path, name: file.name, size: file.size, type: file.type, dataUrl }) })
+
+  return storageRequest('/api/uploads', {
+    method: 'POST',
+    body: JSON.stringify({
+      path,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      dataUrl,
+    }),
+  })
 }
 
-export async function getRDFile(path) {
-  return `${API_BASE}/${String(path).replace(/^\//, '')}`
+export async function getRDFile(filePath) {
+  return `${API_BASE}/${String(filePath).replace(/^\//, '')}`
 }
+
+// Database operations must be implemented by the selected P2 database provider.
+// They deliberately do not fall back to GitHub, localStorage, or the document server.
+function databaseNotConfigured() {
+  throw new Error('P2 database provider is not configured. The own server is document storage only.')
+}
+
+export const selectRows = databaseNotConfigured
+export const insertRows = databaseNotConfigured
+export const updateRows = databaseNotConfigured
+export const deleteRows = databaseNotConfigured
 
 export function resetRDSampleData() {
-  // Runtime reset is intentionally a server-side/admin operation; no local demo data is seeded.
+  // No sample/demo database is maintained by this adapter.
 }
