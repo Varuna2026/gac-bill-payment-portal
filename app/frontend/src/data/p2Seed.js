@@ -1,6 +1,6 @@
 export const P2_MASTER_MAPPINGS = [
   ['VWPL','Apollo Ahmedabad','Apollo Ahmedabad','Bhupender Ent','Manpower'],
-  ['VWPL','Apollo Tepla','Apollo Tepla','Rudransh Enterprises','Manpower'],
+  ['VWPL','Apollo Tepla','RDC & JIT','Rudransh Enterprises','Manpower'],
   ['VWPL','Apollo Tepla','Apollo Tepla','Ravi Singh','Manpower'],
   ['VWPL','Apollo Tepla','Apollo Tepla','Jyoti Enterprises','Manpower'],
   ['VWPL','Apollo Tepla','Apollo Tepla','Jyoti Enterprises','HK'],
@@ -99,7 +99,7 @@ export const P2_USERS = [
 ]
 
 export const P2_SUB_SERVICES = {
-  Manpower: ['Regular/Monthly','ADHOC','OT','Arrear','RDC','JIT','Regular Room Rent','Loading-Unloading','Supervisor','Scanning Labour'],
+  Manpower: ['Regular/Monthly','ADHOC','OT','Arrear','Regular Room Rent','Loading-Unloading','Supervisor','Scanning Labour'],
   HK: ['Regular/Monthly','ADHOC','OT','Arrear','Supervisor','Scanning Labour'],
   Security: ['Regular/Monthly','ADHOC','OT','Arrear','Supervisor'],
   Machine: ['Regular/Monthly'],
