@@ -55,14 +55,15 @@ export const QUERY_DESTINATIONS = {
   CBO_OFFICER: ['CBO_OFFICE', 'ACCOUNTS', 'GAC_PO', 'WH', 'VENDOR'],
 }
 
-export const CONTRACT_TYPES = ['Commercial', 'Minimum Wages', 'Others']
+export const CONTRACT_TYPES = ['Commercial', 'Minimum Wages']
 export const INVOICE_TYPES = ['Other']
 
 export const SERVICE_RULES = {
   Manpower: ['Commercial', 'Minimum Wages'],
-  Housekeeping: ['Minimum Wages'],
+  HK: ['Minimum Wages'],
   Security: ['Minimum Wages'],
+  Machine: ['Minimum Wages'],
 }
 
 export const isApplicableService = (contractType, serviceType) =>
-  SERVICE_RULES[serviceType]?.includes(contractType) ?? contractType === 'Others'
+  SERVICE_RULES[serviceType]?.includes(contractType) ?? false
