@@ -1,0 +1,51 @@
+name: P2 exception routing fix
+on:
+  push:
+    branches: [development]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply P2 exception and Accounts rules
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/frontend/src/App.jsx')
+          s=p.read_text()
+          old="const scopedData=role===ROLES.WH?data.filter(x=>(profile.warehouses||[]).includes(x.warehouse)):data"
+          new="const scopedData=role===ROLES.WH?data.filter(x=>(profile.warehouses||[]).includes(x.warehouse)):role===ROLES.VENDOR?data.filter(x=>mapping.some(m=>m.organization===x.company&&m.warehouse===x.warehouse&&m.project_location===x.project_location&&m.vendor===x.vendor)):data"
+          assert old in s, 'scopedData anchor missing'
+          s=s.replace(old,new,1)
+          old="const currentActionData=baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK].includes(x.current_status))"
+          new="const currentActionData=baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK,...(role===ROLES.ACCOUNTS?[WORKFLOW_STATUS.APPROVED_FOR_PAYMENT]:[])].includes(x.current_status))"
+          assert old in s, 'currentActionData anchor missing'
+          s=s.replace(old,new,1)
+          old="if(active==='Query / Returned / Rejected') return currentExceptionData"
+          new="if(active==='Re-Submitted'&&role===ROLES.VENDOR) return baseVisible.filter(x=>x.current_stage==='VENDOR'&&[WORKFLOW_STATUS.QUERY,WORKFLOW_STATUS.RETURNED,WORKFLOW_STATUS.REJECTED].includes(x.current_status))\n   if(active==='Query / Returned / Rejected'&&role!==ROLES.VENDOR) return currentExceptionData"
+          assert old in s, 'exception tab anchor missing'
+          s=s.replace(old,new,1)
+          old="if(active==='Approved') return baseVisible.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT)"
+          new="if(active==='Approved') return baseVisible.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT)\n   if(active==='Paid') return baseVisible.filter(x=>x.current_status===WORKFLOW_STATUS.PAID)"
+          assert old in s, 'Approved tab anchor missing'
+          s=s.replace(old,new,1)
+          old="function StatusTable({data,role,onAction,title,showWarehouseRemarks=false}){const acts=actionsByRole[role]||[];"
+          new="function StatusTable({data,role,onAction,title,showWarehouseRemarks=false}){const acts=actionsByRole[role]||[];"
+          assert old in s, 'StatusTable anchor missing'
+          # Accounts after CBO Officer approval: only Paid + UTR is exposed.
+          old2="if(acts.length&&x.current_stage===roleStage[role])return <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{acts.filter(a=>a!=='Resubmit to GAC Compliance'||x.current_status===WORKFLOW_STATUS.RETURNED).map(a=>"
+          new2="if(role===ROLES.ACCOUNTS&&x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT&&x.current_stage===roleStage[role])return <div style={{display:'flex',gap:6,flexWrap:'wrap'}}><button onClick={()=>onAction(x,'Paid')}>Paid</button></div>;if(acts.length&&x.current_stage===roleStage[role])return <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{acts.filter(a=>a!=='Resubmit to GAC Compliance'||x.current_status===WORKFLOW_STATUS.RETURNED).map(a=>"
+          assert old2 in s, 'Accounts action anchor missing'
+          s=s.replace(old2,new2,1)
+          p.write_text(s)
+          PY
+      - name: Commit fix and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/frontend/src/App.jsx
+          git commit -m 'Implement P2 exception re-submit and payment routing' || exit 0
+          git push
