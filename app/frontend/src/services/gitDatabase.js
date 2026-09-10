@@ -1,92 +1,21 @@
 import { P2_MASTER_MAPPINGS, P2_USERS } from '../data/p2Seed'
-
-const DB_KEY = 'p2_rnd_database_v1'
-const clone = value => JSON.parse(JSON.stringify(value))
-const sessionProfile = () => { try { return JSON.parse(localStorage.getItem('p2v2_auth_session_v4') || 'null')?.profile || null } catch { return null } }
-
-function initialState() {
-  const vendors = [...new Set(P2_MASTER_MAPPINGS.map(x => x.vendor))].map((name, i) => ({ id: `VEN-${String(i+1).padStart(3,'0')}`, name }))
-  const warehouses = [...new Set(P2_MASTER_MAPPINGS.map(x => x.warehouse))].map((code, i) => ({ id: `WH-${String(i+1).padStart(3,'0')}`, code }))
-  const vendor_warehouse_map = P2_MASTER_MAPPINGS.map(x => ({ id: x.id, organization: x.organization, warehouse: x.warehouse, project_location: x.project_location, vendor: x.vendor, service_type: x.service_type }))
-  return { users: clone(P2_USERS), vendors, warehouses, vendor_warehouse_map, bill_requests: [], invoice_records: [], workflow_history: [], pr_po_utr: [], document_records: [] }
-}
-
-function purgeLegacyTestData(db) {
-  const testIds = new Set((db.invoice_records || []).filter(r => String(r.inv_no || '').startsWith('P2-TEST-')).map(r => r.id))
-  if (!testIds.size) return db
-  db.invoice_records = db.invoice_records.filter(r => !testIds.has(r.id))
-  db.workflow_history = (db.workflow_history || []).filter(r => !testIds.has(r.invoice_id))
-  db.pr_po_utr = (db.pr_po_utr || []).filter(r => !testIds.has(r.invoice_id))
-  db.document_records = (db.document_records || []).filter(r => !testIds.has(r.invoice_id))
-  return db
-}
-
-function readDb() {
-  try {
-    const saved = localStorage.getItem(DB_KEY)
-    const db = purgeLegacyTestData(saved ? JSON.parse(saved) : initialState())
-    if (!db.bill_requests) db.bill_requests = []
-    if (!db.invoice_records) db.invoice_records = []
-    if (!db.workflow_history) db.workflow_history = []
-    if (!db.pr_po_utr) db.pr_po_utr = []
-    if (!db.document_records) db.document_records = []
-    writeDb(db)
-    return db
-  } catch { return initialState() }
-}
-function writeDb(db) { localStorage.setItem(DB_KEY, JSON.stringify(db)); return db }
-function filterRows(rows, query = '') { const params = new URLSearchParams(String(query).replace(/^&/, '')); return rows.filter(row => [...params.entries()].filter(([k]) => k !== 'order').every(([k,v]) => v.startsWith('eq.') ? String(row[k] ?? '') === decodeURIComponent(v.slice(3)) : true)) }
-function visibleForSession(table, rows) {
-  const user = sessionProfile(); if (!user || user.role === 'ADMIN') return rows
-  if (table === 'invoice_records') { if (user.role === 'VENDOR') return rows.filter(r => String(r.vendor).toLowerCase() === String(user.display_name || user.username).toLowerCase()); if (user.role === 'WH') return rows.filter(r => (user.warehouses || []).includes(r.warehouse)) }
-  if (table === 'bill_requests') { if (user.role === 'VENDOR') return rows.filter(r => String(r.vendor).toLowerCase() === String(user.display_name || user.username).toLowerCase()); if (user.role === 'WH') return rows.filter(r => (user.warehouses || []).includes(r.warehouse)) }
-  if (table === 'vendors' && user.role === 'VENDOR') return rows.filter(r => r.name === user.display_name)
-  if (table === 'warehouses' && user.role === 'WH') return rows.filter(r => (user.warehouses || []).includes(r.code))
-  if (table === 'vendor_warehouse_map') { if (user.role === 'VENDOR') return rows.filter(r => r.vendor === user.display_name && (user.warehouses || []).includes(r.warehouse)); if (user.role === 'WH') return rows.filter(r => (user.warehouses || []).includes(r.warehouse)) }
-  return rows
-}
-function mappingMatches(invoice) { return P2_MASTER_MAPPINGS.some(m => m.organization === invoice.organization && m.warehouse === invoice.warehouse && m.project_location === invoice.project_location && m.vendor === invoice.vendor && m.service_type === invoice.service_type) }
-function assertInvoiceInsert(db, row) {
-  const role = sessionProfile()?.role
-  if (!row.inv_no || !String(row.inv_no).trim()) throw new Error('Invoice Number is required.')
-  if (db.invoice_records.some(x => String(x.inv_no).trim().toLowerCase() === String(row.inv_no).trim().toLowerCase())) throw new Error(`Duplicate Invoice Number rejected: ${row.inv_no}`)
-  if (!mappingMatches(row)) throw new Error('Invalid master mapping: Organization, Warehouse, Project/Location, Vendor and Service Type must match the approved P2 master mapping.')
-  if (row.route_type && !['WH_INITIATED','VENDOR_INITIATED'].includes(row.route_type)) throw new Error('Invalid invoice route.')
-  if (role === 'VENDOR' && !['WH_INITIATED','VENDOR_INITIATED'].includes(row.route_type)) throw new Error('Invalid Vendor invoice route.')
-  if (row.service_type === 'HK' || row.service_type === 'Security') { if (row.contract_type !== 'Minimum Wages') throw new Error(`${row.service_type} is allowed only under Minimum Wages.`) }
-  if (row.service_type === 'Manpower' && !['Commercial','Minimum Wages'].includes(row.contract_type)) throw new Error('Manpower requires Commercial or Minimum Wages contract.')
-  const maxMonth = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}` })()
-  if (!row.invoice_month || row.invoice_month > maxMonth) throw new Error(`Invoice Month cannot be later than ${maxMonth}.`)
-  if (row.route_type === 'WH_INITIATED' && row.invoice_month !== maxMonth) throw new Error(`Invoices before ${maxMonth} must be raised through the Vendor-initiated route without WH operational documents.`)
-  if (row.route_type === 'VENDOR_INITIATED' && row.invoice_month >= maxMonth) throw new Error(`Vendor-initiated Route 2 is only for invoices before ${maxMonth}.`)
-  const expectedGst = Math.round((Number(row.taxable_amt) || 0) * 0.18 * 100) / 100
-  if (Math.abs((Number(row.gst_amt) || 0) - expectedGst) > 0.01) throw new Error('GST must be exactly 18% of the entered invoice amount.')
-}
-function assertWorkflowTransition(row, values) {
-  const user = sessionProfile(); const role = user?.role; if (!role || role === 'ADMIN') return
-  const stage = row.current_stage; const status = row.current_status; const ns = values.current_stage; const nst = values.current_status
-  const fail = msg => { throw new Error(`Workflow gate failed: ${msg}`) }
-  if (stage === 'WH' && role !== 'WH') fail('only Warehouse may action a Warehouse-stage invoice')
-  if (stage === 'GAC_COMPLIANCE' && role !== 'GAC_COMPLIANCE') fail('only GAC Compliance may action this stage')
-  if (stage === 'GAC_PO' && role !== 'GAC_PO') fail('only GAC PO may action this stage')
-  if (stage === 'ACCOUNTS' && role !== 'ACCOUNTS') fail('only Accounts may action this stage')
-  if (stage === 'CBO_OFFICE' && role !== 'CBO_OFFICE') fail('only CBO Office may action this stage')
-  if (stage === 'CBO_OFFICER' && role !== 'CBO_OFFICER') fail('only CBO Officer may action this stage')
-  if (role === 'WH' && status === 'SUBMITTED' && ns === 'GAC_COMPLIANCE' && nst === 'PR_MAPPED') return
-  if (role === 'GAC_COMPLIANCE' && status === 'PR_MAPPED' && ns === 'GAC_PO' && nst === 'COMPLIANCE_CHECKED') return
-  if (role === 'GAC_PO' && status === 'COMPLIANCE_CHECKED' && ns === 'ACCOUNTS' && nst === 'PO_MAPPED') return
-  if (role === 'ACCOUNTS' && status === 'PO_MAPPED' && ns === 'CBO_OFFICE' && nst === 'SUBMITTED') return
-  if (role === 'CBO_OFFICE' && status === 'SUBMITTED' && ns === 'CBO_OFFICER' && nst === 'SUBMITTED') return
-  if (role === 'CBO_OFFICER' && status === 'SUBMITTED' && ns === 'ACCOUNTS' && nst === 'APPROVED_FOR_PAYMENT') return
-  if (role === 'ACCOUNTS' && status === 'APPROVED_FOR_PAYMENT' && ns === 'ACCOUNTS' && nst === 'PAID') return
-  const queryReturnReject = ['QUERY','RETURNED','REJECTED'].includes(nst)
-  if (queryReturnReject) { const destinations = { WH:['VENDOR'], GAC_COMPLIANCE:['VENDOR','WH'], GAC_PO:['VENDOR','WH'], ACCOUNTS:['GAC_PO'], CBO_OFFICE:['ACCOUNTS','GAC_PO','WH','VENDOR'], CBO_OFFICER:['CBO_OFFICE','ACCOUNTS','GAC_PO','WH','VENDOR'] }[role] || []; if (!destinations.includes(ns)) fail(`invalid correction/rejection destination ${ns}`); return }
-  fail(`${role} cannot change ${stage}/${status} to ${ns}/${nst}`)
-}
-export async function selectRows(table, query = '') { const db = readDb(); if (!db[table]) throw new Error(`Unknown P2 database table: ${table}`); let rows = visibleForSession(table, filterRows(db[table], query)); if (new URLSearchParams(String(query).replace(/^&/, '')).get('order') === 'created_at.desc') rows = [...rows].sort((a,b) => String(b.created_at||'').localeCompare(String(a.created_at||''))); return clone(rows) }
-export async function insertRows(table, rows) { const db = readDb(); if (!db[table]) throw new Error(`Unknown P2 database table: ${table}`); const input = Array.isArray(rows) ? rows : [rows]; for (const row of input) { if (table === 'invoice_records') assertInvoiceInsert(db, row); if (table === 'pr_po_utr') { const role = sessionProfile()?.role; if (!row.invoice_id) throw new Error('PR/PO/UTR record requires invoice_id.'); if (row.pr_number && !['WH','ADMIN'].includes(role)) throw new Error('Only Warehouse can map PR.'); if (row.po_number && !['GAC_PO','ADMIN'].includes(role)) throw new Error('Only GAC PO can map PO.'); if (row.utr_number && !['ACCOUNTS','ADMIN'].includes(role)) throw new Error('Only final Accounts can map UTR.') } } const inserted = input.map(x => ({ id: x.id || `ID-${Date.now()}-${Math.random().toString(36).slice(2,8)}`, created_at: x.created_at || new Date().toISOString(), ...x })); db[table].push(...clone(inserted)); writeDb(db); return clone(inserted) }
-export async function updateRows(table, query, values) { const db = readDb(); if (!db[table]) throw new Error(`Unknown P2 database table: ${table}`); const hits = filterRows(db[table], query); if (table === 'invoice_records' && (values.current_stage || values.current_status)) { if (hits.length !== 1) throw new Error('Workflow update must target exactly one invoice.'); assertWorkflowTransition(hits[0], values) } const matched = []; db[table] = db[table].map(row => { if (!filterRows([row], query).length) return row; const changed = { ...row, ...values }; matched.push(changed); return changed }); writeDb(db); return clone(matched) }
-export async function deleteRows(table, query) { const db = readDb(); if (!db[table]) throw new Error(`Unknown P2 database table: ${table}`); db[table] = db[table].filter(row => !filterRows([row], query).length); writeDb(db); return [] }
-export function resetRDatabase() { localStorage.removeItem(DB_KEY); return initialState() }
-export const supabaseConfigured = false
-export const RD_MODE = true
+const DB_KEY='p2_rnd_database_v1'
+const clone=v=>JSON.parse(JSON.stringify(v))
+const sessionProfile=()=>{try{const p=JSON.parse(localStorage.getItem('p2v2_auth_session_v4')||'null')?.profile;if(!p)return null;const u=P2_USERS.find(x=>x.username===p.username);return u?{...u,...p}:p}catch{return null}}
+const initialState=()=>({users:clone(P2_USERS),vendors:[...new Set(P2_MASTER_MAPPINGS.map(x=>x.vendor))].map((name,i)=>({id:`VEN-${String(i+1).padStart(3,'0')}`,name})),warehouses:[...new Set(P2_MASTER_MAPPINGS.map(x=>x.warehouse))].map((code,i)=>({id:`WH-${String(i+1).padStart(3,'0')}`,code})),vendor_warehouse_map:P2_MASTER_MAPPINGS.map(x=>({id:x.id,organization:x.organization,warehouse:x.warehouse,project_location:x.project_location,vendor:x.vendor,service_type:x.service_type})),bill_requests:[],invoice_records:[],workflow_history:[],pr_po_utr:[],document_records:[]})
+function purge(db){const ids=new Set((db.invoice_records||[]).filter(r=>String(r.inv_no||'').startsWith('P2-TEST-')).map(r=>r.id));if(ids.size){db.invoice_records=db.invoice_records.filter(r=>!ids.has(r.id));db.workflow_history=(db.workflow_history||[]).filter(r=>!ids.has(r.invoice_id));db.pr_po_utr=(db.pr_po_utr||[]).filter(r=>!ids.has(r.invoice_id));db.document_records=(db.document_records||[]).filter(r=>!ids.has(r.invoice_id))}return db}
+function readDb(){try{const db=purge(JSON.parse(localStorage.getItem(DB_KEY)||JSON.stringify(initialState())));for(const k of ['bill_requests','invoice_records','workflow_history','pr_po_utr','document_records'])if(!db[k])db[k]=[];writeDb(db);return db}catch{return initialState()}}
+function writeDb(db){localStorage.setItem(DB_KEY,JSON.stringify(db));return db}
+function filterRows(rows,q=''){const p=new URLSearchParams(String(q).replace(/^&/,''));return rows.filter(r=>[...p.entries()].filter(([k])=>k!=='order').every(([k,v])=>v.startsWith('eq.')?String(r[k]??'')===decodeURIComponent(v.slice(3)):true))}
+function visible(table,rows){const u=sessionProfile();if(!u||u.role==='ADMIN')return rows;const wh=u.warehouses||[];if(table==='invoice_records'||table==='bill_requests'){if(u.role==='VENDOR')return rows.filter(r=>String(r.vendor).toLowerCase()===String(u.display_name||u.username).toLowerCase());if(u.role==='WH')return rows.filter(r=>wh.includes(r.warehouse)||r.current_responsible_user===u.username||r.current_responsible_user===u.display_name)}if(table==='vendors'&&u.role==='VENDOR')return rows.filter(r=>r.name===u.display_name);if(table==='warehouses'&&u.role==='WH')return rows.filter(r=>wh.includes(r.code));if(table==='vendor_warehouse_map'){if(u.role==='VENDOR')return rows.filter(r=>r.vendor===u.display_name&&wh.includes(r.warehouse));if(u.role==='WH')return rows.filter(r=>wh.includes(r.warehouse))}return rows}
+const mappingMatches=r=>P2_MASTER_MAPPINGS.some(m=>m.organization===r.organization&&m.warehouse===r.warehouse&&m.project_location===r.project_location&&m.vendor===r.vendor&&m.service_type===r.service_type)
+function maxMonth(){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
+function assertInvoice(db,r){if(!r.inv_no)throw Error('Invoice Number is required.');if(db.invoice_records.some(x=>String(x.inv_no).trim().toLowerCase()===String(r.inv_no).trim().toLowerCase()))throw Error(`Duplicate Invoice Number rejected: ${r.inv_no}`);if(!mappingMatches(r))throw Error('Invalid master mapping.');if(r.service_type==='HK'||r.service_type==='Security'){if(r.contract_type!=='Minimum Wages')throw Error(`${r.service_type} is allowed only under Minimum Wages.`)}else if(r.service_type==='Manpower'&&!['Commercial','Minimum Wages'].includes(r.contract_type))throw Error('Manpower requires Commercial or Minimum Wages contract.');const mm=maxMonth();if(!r.invoice_month||r.invoice_month>mm)throw Error(`Invoice Month cannot be later than ${mm}.`);if(r.route_type==='WH_INITIATED'&&r.invoice_month!==mm)throw Error(`Invoices before ${mm} must use Route 2.`);if(r.route_type==='VENDOR_INITIATED'&&r.invoice_month>=mm)throw Error(`Route 2 is only for invoices before ${mm}.`);const gst=Math.round((Number(r.taxable_amt)||0)*.18*100)/100;if(Math.abs((Number(r.gst_amt)||0)-gst)>.01)throw Error('GST must be exactly 18% of the entered invoice amount.')}
+function assertTransition(row,v){const role=sessionProfile()?.role;if(!role||role==='ADMIN')return;const stage=row.current_stage,status=row.current_status,ns=v.current_stage,nst=v.current_status;const fail=m=>{throw Error(`Workflow gate failed: ${m}`)};if(stage!==({WH:'WH',GAC_COMPLIANCE:'GAC_COMPLIANCE',GAC_PO:'GAC_PO',ACCOUNTS:'ACCOUNTS',CBO_OFFICE:'CBO_OFFICE',CBO_OFFICER:'CBO_OFFICER'}[role]||stage))fail(`only ${role} may action this stage`);if(role==='WH'&&status==='SUBMITTED'&&ns==='GAC_COMPLIANCE'&&nst==='PR_MAPPED')return;if(role==='GAC_COMPLIANCE'&&status==='PR_MAPPED'&&ns==='GAC_PO'&&nst==='COMPLIANCE_CHECKED')return;if(role==='GAC_PO'&&status==='COMPLIANCE_CHECKED'&&ns==='ACCOUNTS'&&nst==='PO_MAPPED')return;if(role==='ACCOUNTS'&&status==='PO_MAPPED'&&ns==='CBO_OFFICE'&&nst==='SUBMITTED')return;if(role==='CBO_OFFICE'&&status==='SUBMITTED'&&ns==='CBO_OFFICER'&&nst==='SUBMITTED')return;if(role==='CBO_OFFICER'&&status==='SUBMITTED'&&ns==='ACCOUNTS'&&nst==='APPROVED_FOR_PAYMENT')return;if(role==='ACCOUNTS'&&status==='APPROVED_FOR_PAYMENT'&&ns==='ACCOUNTS'&&nst==='PAID')return;if(['QUERY','RETURNED','REJECTED'].includes(nst)){const d={WH:['VENDOR'],GAC_COMPLIANCE:['VENDOR','WH'],GAC_PO:['VENDOR','WH'],ACCOUNTS:['GAC_PO'],CBO_OFFICE:['ACCOUNTS','GAC_PO','WH','VENDOR'],CBO_OFFICER:['CBO_OFFICE','ACCOUNTS','GAC_PO','WH','VENDOR']}[role]||[];if(!d.includes(ns))fail(`invalid destination ${ns}`);return}fail(`${role} cannot change ${stage}/${status} to ${ns}/${nst}`)}
+export async function selectRows(table,q=''){const db=readDb();if(!db[table])throw Error(`Unknown P2 database table: ${table}`);let r=visible(table,filterRows(db[table],q));if(new URLSearchParams(String(q).replace(/^&/,'')).get('order')==='created_at.desc')r=[...r].sort((a,b)=>String(b.created_at||'').localeCompare(String(a.created_at||'')));return clone(r)}
+export async function insertRows(table,rows){const db=readDb();if(!db[table])throw Error(`Unknown P2 database table: ${table}`);const input=Array.isArray(rows)?rows:[rows];for(const r of input){if(table==='invoice_records')assertInvoice(db,r);if(table==='pr_po_utr'&&r.pr_number&&!['WH','ADMIN'].includes(sessionProfile()?.role))throw Error('Only Warehouse can map PR.');if(table==='pr_po_utr'&&r.po_number&&!['GAC_PO','ADMIN'].includes(sessionProfile()?.role))throw Error('Only GAC PO can map PO.');if(table==='pr_po_utr'&&r.utr_number&&!['ACCOUNTS','ADMIN'].includes(sessionProfile()?.role))throw Error('Only final Accounts can map UTR.')}const out=input.map(r=>({id:r.id||`ID-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,created_at:r.created_at||new Date().toISOString(),...r}));db[table].push(...clone(out));writeDb(db);return clone(out)}
+export async function updateRows(table,q,v){const db=readDb();if(!db[table])throw Error(`Unknown P2 database table: ${table}`);const hits=filterRows(db[table],q);if(table==='invoice_records'&&(v.current_stage||v.current_status)){if(hits.length!==1)throw Error('Workflow update must target exactly one invoice.');assertTransition(hits[0],v)}const out=[];db[table]=db[table].map(r=>{if(!filterRows([r],q).length)return r;const x={...r,...v};out.push(x);return x});writeDb(db);return clone(out)}
+export async function deleteRows(table,q){const db=readDb();if(!db[table])throw Error(`Unknown P2 database table: ${table}`);db[table]=db[table].filter(r=>!filterRows([r],q).length);writeDb(db);return []}
+export function resetRDatabase(){localStorage.removeItem(DB_KEY);return initialState()}
+export const supabaseConfigured=false
+export const RD_MODE=true
