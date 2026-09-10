@@ -1,8 +1,6 @@
 import { P2_MASTER_MAPPINGS, P2_USERS as OPERATIONAL_USERS } from './p2Seed'
 
-// R&D login convention for Vendor and Warehouse testing:
-// ID = generated unique short code; Password = same code.
-// Codes are deterministic from the current master, so the login list stays aligned with it.
+// R&D login convention: ID = Password for every P2 test user.
 function codeBase(name) {
   const words = String(name).trim().match(/[A-Za-z0-9]+/g) || []
   if (words.length >= 2) return `${words[0][0]}${words[1][0]}`.toUpperCase()
@@ -40,7 +38,10 @@ export const P2_WH_LOGIN_USERS = warehouseNames.map(name => ({
   test_login: true,
 }))
 
-// Keep the existing non-Vendor/non-WH operational logins and replace the old
-// single Vendor/WH demo accounts with the complete master-driven test accounts.
-const OTHER_USERS = OPERATIONAL_USERS.filter(x => !['VENDOR', 'WH'].includes(x.role))
+// All operational R&D accounts use ID as password.
+const OTHER_USERS = OPERATIONAL_USERS.filter(x => !['VENDOR', 'WH'].includes(x.role)).map(x => ({
+  ...x,
+  test_login: true,
+}))
+
 export const P2_LOGIN_USERS = [...OTHER_USERS, ...P2_VENDOR_LOGIN_USERS, ...P2_WH_LOGIN_USERS]
