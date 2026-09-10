@@ -1,4 +1,4 @@
-import { P2_MASTER_MAPPINGS, P2_TEST_INVOICES, P2_TEST_HISTORY, P2_TEST_PR_PO_UTR, P2_TEST_DOCUMENTS } from '../data/p2Seed'
+import { P2_MASTER_MAPPINGS, P2_TEST_INVOICES, P2_TEST_HISTORY, P2_TEST_PR_PO_UTR, P2_TEST_DOCUMENTS, P2_USERS } from '../data/p2Seed'
 
 const DB_KEY = 'p2_rnd_database_v1'
 const clone = value => JSON.parse(JSON.stringify(value))
@@ -7,26 +7,39 @@ function initialState() {
   const vendors = [...new Set(P2_MASTER_MAPPINGS.map(x => x.vendor))].map((name, i) => ({ id: `VEN-${String(i+1).padStart(3,'0')}`, name }))
   const warehouses = [...new Set(P2_MASTER_MAPPINGS.map(x => x.warehouse))].map((code, i) => ({ id: `WH-${String(i+1).padStart(3,'0')}`, code }))
   const vendor_warehouse_map = P2_MASTER_MAPPINGS.map(x => ({ id: x.id, organization: x.organization, warehouse: x.warehouse, project_location: x.project_location, vendor: x.vendor, service_type: x.service_type }))
-  return { vendors, warehouses, vendor_warehouse_map, invoice_records: clone(P2_TEST_INVOICES), workflow_history: clone(P2_TEST_HISTORY), pr_po_utr: clone(P2_TEST_PR_PO_UTR), document_records: clone(P2_TEST_DOCUMENTS) }
+  return { users: clone(P2_USERS), vendors, warehouses, vendor_warehouse_map, invoice_records: clone(P2_TEST_INVOICES), workflow_history: clone(P2_TEST_HISTORY), pr_po_utr: clone(P2_TEST_PR_PO_UTR), document_records: clone(P2_TEST_DOCUMENTS) }
 }
 
 function readDb() {
-  try {
-    const saved = localStorage.getItem(DB_KEY)
-    return saved ? JSON.parse(saved) : initialState()
-  } catch { return initialState() }
+  try { const saved = localStorage.getItem(DB_KEY); return saved ? JSON.parse(saved) : initialState() } catch { return initialState() }
 }
-
 function writeDb(db) { localStorage.setItem(DB_KEY, JSON.stringify(db)); return db }
 function filterRows(rows, query = '') {
   const params = new URLSearchParams(String(query).replace(/^&/, ''))
   return rows.filter(row => [...params.entries()].filter(([k]) => k !== 'order').every(([k,v]) => v.startsWith('eq.') ? String(row[k] ?? '') === decodeURIComponent(v.slice(3)) : true))
 }
 
+function visibleForSession(table, rows) {
+  let session = null
+  try { session = JSON.parse(localStorage.getItem('p2v2_auth_session_v4') || 'null') } catch {}
+  const user = session?.profile
+  if (!user || user.role === 'ADMIN') return rows
+  if (table === 'invoice_records') {
+    if (user.role === 'VENDOR') return rows.filter(r => String(r.vendor).toLowerCase() === String(user.display_name || user.username).toLowerCase())
+    if (user.role === 'WH') return rows.filter(r => (user.warehouses || []).includes(r.warehouse))
+  }
+  if (table === 'vendors' && user.role === 'VENDOR') return rows.filter(r => r.name === user.display_name)
+  if (table === 'warehouses' && user.role === 'WH') return rows.filter(r => (user.warehouses || []).includes(r.code))
+  if (table === 'vendor_warehouse_map') {
+    if (user.role === 'VENDOR') return rows.filter(r => r.vendor === user.display_name && (user.warehouses || []).includes(r.warehouse))
+    if (user.role === 'WH') return rows.filter(r => (user.warehouses || []).includes(r.warehouse))
+  }
+  return rows
+}
+
 export async function selectRows(table, query = '') {
-  const db = readDb()
-  if (!db[table]) throw new Error(`Unknown P2 database table: ${table}`)
-  let rows = filterRows(db[table], query)
+  const db = readDb(); if (!db[table]) throw new Error(`Unknown P2 database table: ${table}`)
+  let rows = visibleForSession(table, filterRows(db[table], query))
   if (new URLSearchParams(String(query).replace(/^&/, '')).get('order') === 'created_at.desc') rows = [...rows].sort((a,b) => String(b.created_at||'').localeCompare(String(a.created_at||'')))
   return clone(rows)
 }
