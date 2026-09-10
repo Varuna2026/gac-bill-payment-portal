@@ -127,3 +127,62 @@ export const P2_TEST_HISTORY = P2_TEST_INVOICES.map((invoice) => ({
 
 export const P2_TEST_PR_PO_UTR = []
 export const P2_TEST_DOCUMENTS = []
+
+// The CSV in /documents is the authoritative master. The array above is only a bootstrap
+// fallback so the R&D app can render before the first successful fetch. On every app load,
+// the current CSV is fetched with no-cache, validated, reconciled into the same mutable array,
+// and cached locally. New selections and workflow validation therefore use the latest master.
+const MASTER_FILE = `${import.meta.env.BASE_URL || '/'}documents/Org-WH-Vendor-Proj-Loc-Service (Master Data).csv`
+const MASTER_CACHE_KEY = 'p2_authoritative_master_v1'
+
+function parseCsvLine(line) {
+  const cells = []; let cell = ''; let quoted = false
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i]
+    if (ch === '"') { if (quoted && line[i + 1] === '"') { cell += '"'; i += 1 } else quoted = !quoted }
+    else if (ch === ',' && !quoted) { cells.push(cell.trim()); cell = '' }
+    else cell += ch
+  }
+  cells.push(cell.trim())
+  return cells
+}
+
+function parseMasterCsv(text) {
+  const lines = String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/)
+  const rows = []
+  for (const line of lines.slice(1)) {
+    if (!line.trim()) continue
+    const [organization, warehouse, project_location, vendor, serviceRaw] = parseCsvLine(line)
+    if (![organization, warehouse, project_location, vendor, serviceRaw].every(Boolean)) continue
+    const service_type = serviceRaw === 'Housekeeping' ? 'HK' : serviceRaw
+    rows.push({ organization, warehouse, project_location, vendor, service_type })
+  }
+  const unique = new Map()
+  for (const row of rows) unique.set([row.organization,row.warehouse,row.project_location,row.vendor,row.service_type].join('\u001f'), row)
+  return [...unique.values()].map((row, index) => ({ id: `MAP-${String(index + 1).padStart(3,'0')}`, ...row }))
+}
+
+export async function reconcileMasterFromCsv() {
+  try {
+    const response = await fetch(MASTER_FILE, { cache: 'no-store' })
+    if (!response.ok) throw new Error(`Master CSV unavailable (${response.status}).`)
+    const mappings = parseMasterCsv(await response.text())
+    if (!mappings.length) throw new Error('Master CSV contains no valid mapping rows.')
+    P2_MASTER_MAPPINGS.splice(0, P2_MASTER_MAPPINGS.length, ...mappings)
+    localStorage.setItem(MASTER_CACHE_KEY, JSON.stringify(mappings))
+    return mappings
+  } catch (error) {
+    try {
+      const cached = JSON.parse(localStorage.getItem(MASTER_CACHE_KEY) || 'null')
+      if (Array.isArray(cached) && cached.length) P2_MASTER_MAPPINGS.splice(0, P2_MASTER_MAPPINGS.length, ...cached)
+    } catch {}
+    return P2_MASTER_MAPPINGS
+  }
+}
+
+try {
+  const cached = JSON.parse(localStorage.getItem(MASTER_CACHE_KEY) || 'null')
+  if (Array.isArray(cached) && cached.length) P2_MASTER_MAPPINGS.splice(0, P2_MASTER_MAPPINGS.length, ...cached)
+} catch {}
+
+reconcileMasterFromCsv()
