@@ -1,0 +1,9 @@
+{
+  "name": "gac-bill-payment-portal-backend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "P2 backend for own-server data and document storage",
+  "type": "module",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=20" }
+}
