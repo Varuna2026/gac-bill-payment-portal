@@ -16,27 +16,21 @@ jobs:
           from pathlib import Path
           p=Path('app/frontend/src/App.jsx')
           s=p.read_text()
-          # Vendor Re-Submitted must accept Query, Return and Reject outcomes.
           old="x.current_stage==='VENDOR'&&x.current_status===WORKFLOW_STATUS.RETURNED&&<button"
           new="x.current_stage==='VENDOR'&&[WORKFLOW_STATUS.QUERY,WORKFLOW_STATUS.RETURNED,WORKFLOW_STATUS.REJECTED].includes(x.current_status)&&<button"
           assert old in s, 'Vendor resubmit condition missing'
           s=s.replace(old,new,1)
-          # GAC Compliance can Query/Return/Reject to the allowed Vendor/WH destinations.
-          old="GAC_COMPLIANCE:['VENDOR','WH']"
-          if old not in s:
-              anchor="const choices={WH:['VENDOR'],GAC_PO:['VENDOR','WH'],ACCOUNTS:['GAC_PO'],"
+          anchor="const choices={WH:['VENDOR'],GAC_PO:['VENDOR','WH'],ACCOUNTS:['GAC_PO'],"
+          if "GAC_COMPLIANCE:['VENDOR','WH']" not in s:
               assert anchor in s, 'Route choices anchor missing'
               s=s.replace(anchor,"const choices={WH:['VENDOR'],GAC_COMPLIANCE:['VENDOR','WH'],GAC_PO:['VENDOR','WH'],ACCOUNTS:['GAC_PO'],",1)
           old="const actionsByRole={WH:['Accept','Query','Return','Reject','Resubmit to GAC Compliance'],GAC_COMPLIANCE:['Accept','Compliance Check OK','Compliance Check Rejected']"
           new="const actionsByRole={WH:['Accept','Query','Return','Reject','Resubmit to GAC Compliance'],GAC_COMPLIANCE:['Accept','Query','Return','Reject','Compliance Check OK','Compliance Check Rejected']"
           if old in s: s=s.replace(old,new,1)
-          # CBO Office routes exceptions only to WH, GAC PO or Accounts.
           old="CBO_OFFICE:['ACCOUNTS','GAC_PO','WH','VENDOR']"
           new="CBO_OFFICE:['ACCOUNTS','GAC_PO','WH']"
           assert old in s, 'CBO Office route list missing'
           s=s.replace(old,new,1)
-          # Keep CBO Officer able to return to any earlier operational stage.
-          # Add generic Query/Return/Reject controls to GAC Compliance's special action panel.
           old="</select></>:<button className=\"primary\" onClick={()=>onAction(x,'Accept')}>Accept</button>}</div>};if(role===ROLES.ACCOUNTS"
           new="</select></>:<button className=\"primary\" onClick={()=>onAction(x,'Accept')}>Accept</button>}<button onClick={()=>onAction(x,'Query')}>Query</button><button onClick={()=>onAction(x,'Return')}>Return</button><button onClick={()=>onAction(x,'Reject')}>Reject</button></div>};if(role===ROLES.ACCOUNTS"
           assert old in s, 'GAC Compliance action panel anchor missing'
