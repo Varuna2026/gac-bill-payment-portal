@@ -32,17 +32,13 @@ jobs:
           new="if(active==='Approved') return baseVisible.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT)\n   if(active==='Paid') return baseVisible.filter(x=>x.current_status===WORKFLOW_STATUS.PAID)"
           assert old in s, 'Approved tab anchor missing'
           s=s.replace(old,new,1)
-          old="function StatusTable({data,role,onAction,title,showWarehouseRemarks=false}){const acts=actionsByRole[role]||[];"
-          new="function StatusTable({data,role,onAction,title,showWarehouseRemarks=false}){const acts=actionsByRole[role]||[];"
-          assert old in s, 'StatusTable anchor missing'
-          # Accounts after CBO Officer approval: only Paid + UTR is exposed.
           old2="if(acts.length&&x.current_stage===roleStage[role])return <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{acts.filter(a=>a!=='Resubmit to GAC Compliance'||x.current_status===WORKFLOW_STATUS.RETURNED).map(a=>"
           new2="if(role===ROLES.ACCOUNTS&&x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT&&x.current_stage===roleStage[role])return <div style={{display:'flex',gap:6,flexWrap:'wrap'}}><button onClick={()=>onAction(x,'Paid')}>Paid</button></div>;if(acts.length&&x.current_stage===roleStage[role])return <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{acts.filter(a=>a!=='Resubmit to GAC Compliance'||x.current_status===WORKFLOW_STATUS.RETURNED).map(a=>"
           assert old2 in s, 'Accounts action anchor missing'
           s=s.replace(old2,new2,1)
           p.write_text(s)
           PY
-      - name: Commit fix and remove workflow
+      - name: Commit fix
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
