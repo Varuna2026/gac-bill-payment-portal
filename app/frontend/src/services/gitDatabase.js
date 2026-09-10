@@ -1,4 +1,4 @@
-import { P2_MASTER_MAPPINGS, P2_TEST_INVOICES, P2_TEST_HISTORY, P2_TEST_PR_PO_UTR, P2_TEST_DOCUMENTS, P2_USERS } from '../data/p2Seed'
+import { P2_MASTER_MAPPINGS, P2_USERS } from '../data/p2Seed'
 
 const DB_KEY = 'p2_rnd_database_v1'
 const clone = value => JSON.parse(JSON.stringify(value))
@@ -8,9 +8,32 @@ function initialState() {
   const vendors = [...new Set(P2_MASTER_MAPPINGS.map(x => x.vendor))].map((name, i) => ({ id: `VEN-${String(i+1).padStart(3,'0')}`, name }))
   const warehouses = [...new Set(P2_MASTER_MAPPINGS.map(x => x.warehouse))].map((code, i) => ({ id: `WH-${String(i+1).padStart(3,'0')}`, code }))
   const vendor_warehouse_map = P2_MASTER_MAPPINGS.map(x => ({ id: x.id, organization: x.organization, warehouse: x.warehouse, project_location: x.project_location, vendor: x.vendor, service_type: x.service_type }))
-  return { users: clone(P2_USERS), vendors, warehouses, vendor_warehouse_map, bill_requests: [], invoice_records: clone(P2_TEST_INVOICES), workflow_history: clone(P2_TEST_HISTORY), pr_po_utr: clone(P2_TEST_PR_PO_UTR), document_records: clone(P2_TEST_DOCUMENTS) }
+  return { users: clone(P2_USERS), vendors, warehouses, vendor_warehouse_map, bill_requests: [], invoice_records: [], workflow_history: [], pr_po_utr: [], document_records: [] }
 }
-function readDb() { try { const saved = localStorage.getItem(DB_KEY); const db = saved ? JSON.parse(saved) : initialState(); if (!db.bill_requests) db.bill_requests = []; return db } catch { return initialState() } }
+
+function purgeLegacyTestData(db) {
+  const testIds = new Set((db.invoice_records || []).filter(r => String(r.inv_no || '').startsWith('P2-TEST-')).map(r => r.id))
+  if (!testIds.size) return db
+  db.invoice_records = db.invoice_records.filter(r => !testIds.has(r.id))
+  db.workflow_history = (db.workflow_history || []).filter(r => !testIds.has(r.invoice_id))
+  db.pr_po_utr = (db.pr_po_utr || []).filter(r => !testIds.has(r.invoice_id))
+  db.document_records = (db.document_records || []).filter(r => !testIds.has(r.invoice_id))
+  return db
+}
+
+function readDb() {
+  try {
+    const saved = localStorage.getItem(DB_KEY)
+    const db = purgeLegacyTestData(saved ? JSON.parse(saved) : initialState())
+    if (!db.bill_requests) db.bill_requests = []
+    if (!db.invoice_records) db.invoice_records = []
+    if (!db.workflow_history) db.workflow_history = []
+    if (!db.pr_po_utr) db.pr_po_utr = []
+    if (!db.document_records) db.document_records = []
+    writeDb(db)
+    return db
+  } catch { return initialState() }
+}
 function writeDb(db) { localStorage.setItem(DB_KEY, JSON.stringify(db)); return db }
 function filterRows(rows, query = '') { const params = new URLSearchParams(String(query).replace(/^&/, '')); return rows.filter(row => [...params.entries()].filter(([k]) => k !== 'order').every(([k,v]) => v.startsWith('eq.') ? String(row[k] ?? '') === decodeURIComponent(v.slice(3)) : true)) }
 function visibleForSession(table, rows) {
@@ -29,9 +52,15 @@ function assertInvoiceInsert(db, row) {
   if (db.invoice_records.some(x => String(x.inv_no).trim().toLowerCase() === String(row.inv_no).trim().toLowerCase())) throw new Error(`Duplicate Invoice Number rejected: ${row.inv_no}`)
   if (!mappingMatches(row)) throw new Error('Invalid master mapping: Organization, Warehouse, Project/Location, Vendor and Service Type must match the approved P2 master mapping.')
   if (row.route_type && !['WH_INITIATED','VENDOR_INITIATED'].includes(row.route_type)) throw new Error('Invalid invoice route.')
-  if (role === 'VENDOR' && row.route_type !== 'WH_INITIATED' && row.route_type !== 'VENDOR_INITIATED') throw new Error('Invalid Vendor invoice route.')
+  if (role === 'VENDOR' && !['WH_INITIATED','VENDOR_INITIATED'].includes(row.route_type)) throw new Error('Invalid Vendor invoice route.')
   if (row.service_type === 'HK' || row.service_type === 'Security') { if (row.contract_type !== 'Minimum Wages') throw new Error(`${row.service_type} is allowed only under Minimum Wages.`) }
   if (row.service_type === 'Manpower' && !['Commercial','Minimum Wages'].includes(row.contract_type)) throw new Error('Manpower requires Commercial or Minimum Wages contract.')
+  const maxMonth = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}` })()
+  if (!row.invoice_month || row.invoice_month > maxMonth) throw new Error(`Invoice Month cannot be later than ${maxMonth}.`)
+  if (row.route_type === 'WH_INITIATED' && row.invoice_month !== maxMonth) throw new Error(`Invoices before ${maxMonth} must be raised through the Vendor-initiated route without WH operational documents.`)
+  if (row.route_type === 'VENDOR_INITIATED' && row.invoice_month >= maxMonth) throw new Error(`Vendor-initiated Route 2 is only for invoices before ${maxMonth}.`)
+  const expectedGst = Math.round((Number(row.taxable_amt) || 0) * 0.18 * 100) / 100
+  if (Math.abs((Number(row.gst_amt) || 0) - expectedGst) > 0.01) throw new Error('GST must be exactly 18% of the entered invoice amount.')
 }
 function assertWorkflowTransition(row, values) {
   const user = sessionProfile(); const role = user?.role; if (!role || role === 'ADMIN') return
