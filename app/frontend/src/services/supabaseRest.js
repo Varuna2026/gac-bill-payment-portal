@@ -1,14 +1,12 @@
-// P2 R&D data adapter.
-// Database records are Git-controlled seed/configuration data with browser persistence for testing.
-// Uploaded documents are kept OUT of GitHub and OUT of Supabase.
-// In the GitHub Pages R&D build, files are stored in browser IndexedDB so the portal
-// does not depend on a local backend. A VITE_API_BASE_URL can still be supplied later
-// when a separately hosted document server is available.
+// P2 R&D document adapter.
+// Git-only test mode: uploaded documents stay outside GitHub in browser IndexedDB.
+// A versioned storage name forces every browser to start with an empty document store
+// for the fresh-test cycle. GitHub remains source/application storage only.
 import { selectRows, insertRows, updateRows, deleteRows, resetRDatabase, supabaseConfigured, RD_MODE } from './gitDatabase'
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
-const FILE_DB = 'p2_document_storage_v1'
+const FILE_DB = 'p2_document_storage_v2_clean_test'
 const FILE_STORE = 'files'
+try { indexedDB.deleteDatabase('p2_document_storage_v1') } catch {}
 
 function openFileDb() {
   return new Promise((resolve, reject) => {
@@ -41,55 +39,20 @@ async function getBrowserFile(key) {
   })
 }
 
-async function storageRequest(path, options = {}) {
-  if (!API_BASE) throw new Error('No hosted document server configured.')
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options,
-  })
-  const text = await response.text()
-  let data = null
-  try { data = text ? JSON.parse(text) : null } catch { data = text }
-  if (!response.ok) throw new Error(data?.error || `Document storage request failed (${response.status})`)
-  return data
-}
-
 export { selectRows, insertRows, updateRows, deleteRows, resetRDatabase, supabaseConfigured, RD_MODE }
 
 export async function uploadStorage(path, file) {
-  // R&D/GitHub Pages default: browser-local IndexedDB. This is intentionally
-  // separate from GitHub source storage and requires no localhost service.
-  if (!API_BASE) return putBrowserFile(path, file)
-
-  const dataUrl = await new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-  try {
-    return await storageRequest('/api/uploads', {
-      method: 'POST',
-      body: JSON.stringify({ path, name: file.name, size: file.size, type: file.type, dataUrl })
-    })
-  } catch (error) {
-    // Keep R&D usable if the optional document server is unavailable.
-    if (RD_MODE) return putBrowserFile(path, file)
-    throw error
-  }
+  return putBrowserFile(path, file)
 }
 
 export async function readRDFile(filePath) {
   const value = String(filePath || '')
-  if (value.startsWith('idb://')) return getBrowserFile(value.slice(6))
-  if (!API_BASE) throw new Error('No hosted document server configured for this file.')
-  const response = await fetch(`${API_BASE}/${value.replace(/^\//, '')}`)
-  if (!response.ok) throw new Error(`Unable to read document (${response.status})`)
-  return response.blob()
+  if (!value.startsWith('idb://')) throw new Error('Git-only R&D storage accepts browser document paths only.')
+  const file = await getBrowserFile(value.slice(6))
+  if (!file) throw new Error('Document not found in the current browser test storage.')
+  return file
 }
 
 export function getRDFile(filePath) {
-  const value = String(filePath || '')
-  if (value.startsWith('idb://')) return value
-  return API_BASE ? `${API_BASE}/${value.replace(/^\//, '')}` : value
+  return String(filePath || '')
 }
