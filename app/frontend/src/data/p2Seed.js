@@ -1,9 +1,9 @@
 export const P2_MASTER_MAPPINGS = [
   ['VWPL','Apollo Ahmedabad','Apollo Ahmedabad','Bhupender Ent','Manpower'],
-  ['VWPL','Apollo Tepla','RDC & JIT','Rudransh Enterprises','Manpower'],
-  ['VWPL','Apollo Tepla','Apollo Tepla','Ravi Singh','Manpower'],
-  ['VWPL','Apollo Tepla','Apollo Tepla','Jyoti Enterprises','Manpower'],
-  ['VWPL','Apollo Tepla','Apollo Tepla','Jyoti Enterprises','HK'],
+  ['VWPL','Apollo Tepla','RDC/JIT','Rudransh Enterprises','Manpower'],
+  ['VWPL','Apollo Tepla','RDC/JIT','Ravi Singh','Manpower'],
+  ['VWPL','Apollo Tepla','RDC/JIT','Jyoti Enterprises','Manpower'],
+  ['VWPL','Apollo Tepla','RDC/JIT','Jyoti Enterprises','HK'],
   ['VWPL','Apollo Tepla','Apollo Tepla','Immigration Security Services Pvt Ltd','Security'],
   ['VWPL','Apollo Cuttack','Apollo Cuttack','GDX','Security'],
   ['VWPL','Apollo Cuttack','Apollo Cuttack','Sahoo Labour','Manpower'],
