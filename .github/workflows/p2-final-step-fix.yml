@@ -13,35 +13,56 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: development
-      - name: Fix P2 received and under-process workflow
+      - name: Fix P2 workflow stages
         shell: python
         run: |
           from pathlib import Path
           import re
           p=Path('app/frontend/src/App.jsx')
           s=p.read_text()
-          # Remove duplicate bulkAccept declaration left by earlier patch workflow.
-          dup="const bulkAccept=async()=>{for(const x of data.filter(r=>checked.includes(r.id)))await onAction(x,'Accept','RECEIVE');setChecked([])};const bulkAccept=async()=>{for(const x of data.filter(r=>checked.includes(r.id)))await onAction(x,'Accept','RECEIVE');setChecked([])};"
-          single="const bulkAccept=async()=>{for(const x of data.filter(r=>checked.includes(r.id)))await onAction(x,'Accept','RECEIVE');setChecked([])};"
-          s=s.replace(dup,single,1)
-          old="if(routeChoice==='RECEIVE'){routeChoice=null;}if(act==='Accept'){ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role];if(role===ROLES.WH){const pr=window.prompt('PR Number (required):','');if(!pr)return;extra={pr_number:pr,pr_mapped_by:profile.id,pr_mapped_at:now};ns=WORKFLOW_STATUS.PR_MAPPED;nstage='GAC_COMPLIANCE'}else if(role===ROLES.GAC_COMPLIANCE){nstage='GAC_COMPLIANCE'}else if(role===ROLES.GAC_PO){const po=window.prompt('PO Number (required):','');if(!po)return;extra={po_number:po,po_mapped_by:profile.id,po_mapped_at:now};ns=WORKFLOW_STATUS.PO_MAPPED;nstage='ACCOUNTS'}else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}else if(role===ROLES.CBO_OFFICER){ns=WORKFLOW_STATUS.APPROVED_FOR_PAYMENT;nstage='ACCOUNTS'}}"
-          new="if(routeChoice==='RECEIVE')routeChoice=null;if(act==='Accept'){ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role]}"
-          if old in s:s=s.replace(old,new,1)
-          old="else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}"
-          new="else if(act==='Submit'){if(role===ROLES.WH){const pr=window.prompt('PR Number (required):','');if(!pr)return;extra={pr_number:pr,pr_mapped_by:profile.id,pr_mapped_at:now};ns=WORKFLOW_STATUS.PR_MAPPED;nstage='GAC_COMPLIANCE'}else if(role===ROLES.GAC_COMPLIANCE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}else if(role===ROLES.GAC_PO){const poRows=await selectRows('pr_po_utr',`&invoice_id=eq.${inv.id}`,token);if(!poRows.length||!poRows[0].po_number){setError('Save the PO Number before Submit.');return}ns=WORKFLOW_STATUS.PO_MAPPED;nstage='ACCOUNTS'}else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}else return}"
-          if old in s:s=s.replace(old,new+old,1)
-          old="else if(act==='PO Mapping'){const po=window.prompt('PO Number (required):','');if(!po)return;extra={po_number:po,po_mapped_by:profile.id,po_mapped_at:now};ns=WORKFLOW_STATUS.PO_MAPPED;nstage='ACCOUNTS'}"
-          new="else if(act==='PO Mapping'){const po=(routeChoice||'').trim();if(!po)return;extra={po_number:po,po_mapped_by:profile.id,po_mapped_at:now};ns=WORKFLOW_STATUS.ACCEPTED;nstage='GAC_PO'}"
-          if old in s:s=s.replace(old,new,1)
-          old="if(active==='Received'){\n     if(role===ROLES.VENDOR)return baseVisible.filter(x=>x.current_stage==='VENDOR'&&x.current_status===WORKFLOW_STATUS.PENDING)\n     return baseVisible.filter(x=>x.current_stage===roleStageKey&&x.current_status===WORKFLOW_STATUS.ACCEPTED)\n   }\n   if(active==='Under Process') return baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK].includes(x.current_status))"
-          new="if(active==='Received & Under Process'||active==='Received'||active==='Under Process'){\n     if(role===ROLES.VENDOR)return baseVisible.filter(x=>x.current_stage==='VENDOR'&&x.current_status===WORKFLOW_STATUS.PENDING)\n     return baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK].includes(x.current_status))\n   }"
-          if old in s:s=s.replace(old,new,1)
-          old="function StatusTable({data,role,onAction,title,showWarehouseRemarks=false,history=[]}){const acts=actionsByRole[role]||[];const isPending=title==='Pending for Action'||title==='Pending'||title==='Pending for Approval';const[checked,setChecked]=useState([]);const openDocuments="
-          new="function StatusTable({data,role,onAction,title,showWarehouseRemarks=false,history=[]}){const acts=actionsByRole[role]||[];const isPending=title==='Pending for Action'||title==='Pending'||title==='Pending for Approval';const isReceivedProcess=title==='Received & Under Process'||title==='Received'||title==='Under Process';const[checked,setChecked]=useState([]);const[poDraft,setPoDraft]=useState({});const[savedPO,setSavedPO]=useState({});const openDocuments="
-          if old in s:s=s.replace(old,new,1)
-          old="const actionButtons=x=>{if(isPending)return"
-          new="const savePO=async x=>{const po=(poDraft[x.id]||'').trim();if(!po)return;await onAction(x,'PO Mapping',po);setSavedPO(v=>({...v,[x.id]:po}))};const submitPO=async x=>{if(!savedPO[x.id])return;await onAction(x,'Submit')};const actionButtons=x=>{if(isReceivedProcess&&role===ROLES.GAC_PO)return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><input value={poDraft[x.id]||''} onChange={e=>setPoDraft(v=>({...v,[x.id]:e.target.value}))} placeholder='PO Number' style={{minWidth:150}}/><button className='primary' onClick={()=>savePO(x)} disabled={!poDraft[x.id]}>Save</button><button className='link-btn' onClick={()=>savePO(x)} disabled={!poDraft[x.id]}>Change PO</button><button className='primary' onClick={()=>submitPO(x)} disabled={!savedPO[x.id]}>Submit</button></div>;if(isPending)return"
-          if old in s:s=s.replace(old,new,1)
+
+          # Collapse any duplicate bulkAccept declarations from earlier patch attempts.
+          bulk="const bulkAccept=async()=>{for(const x of data.filter(r=>checked.includes(r.id)))await onAction(x,'Accept','RECEIVE');setChecked([])};"
+          s=re.sub(re.escape(bulk)+r'(?:'+re.escape(bulk)+r')+',bulk,s)
+
+          # Accept = receive acknowledgement only. Never advance the authority here.
+          pat=r"if\(routeChoice==='RECEIVE'\).*?if\(act==='Accept'\).*?(?=else if\(act==='Compliance Check OK'\))"
+          repl="if(routeChoice==='RECEIVE')routeChoice=null;if(act==='Accept'){ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role]}"
+          s,n=re.subn(pat,repl,s,count=1,flags=re.S)
+          if n!=1: raise SystemExit('Accept stage pattern not found')
+
+          # Submit is the actual next-step transition.
+          pat=r"else if\(act==='Submit'\)\{.*?\}(?=else if\(act==='Compliance Check OK'\))"
+          submit="else if(act==='Submit'){if(role===ROLES.WH){const pr=window.prompt('PR Number (required):','');if(!pr)return;extra={pr_number:pr,pr_mapped_by:profile.id,pr_mapped_at:now};ns=WORKFLOW_STATUS.PR_MAPPED;nstage='GAC_COMPLIANCE'}else if(role===ROLES.GAC_COMPLIANCE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}else if(role===ROLES.GAC_PO){const poRows=await selectRows('pr_po_utr',`&invoice_id=eq.${inv.id}`,token);if(!poRows.length||!poRows[0].po_number){setError('Save the PO Number before Submit.');return}ns=WORKFLOW_STATUS.PO_MAPPED;nstage='ACCOUNTS'}else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}else return}"
+          if re.search(pat,s,re.S): s=re.sub(pat,submit,s,count=1,flags=re.S)
+          else:
+            marker="else if(act==='Compliance Check OK')"
+            i=s.find(marker)
+            if i<0: raise SystemExit('Submit insertion point not found')
+            s=s[:i]+submit+s[i:]
+
+          # PO Mapping is Save-only; it stays at GAC PO. Submit advances later.
+          pat=r"else if\(act==='PO Mapping'\)\{.*?\}(?=else if\(act==='Approve'\)|else if\(\['Query','Return','Reject'\]\))"
+          repl="else if(act==='PO Mapping'){const po=(routeChoice||'').trim();if(!po)return;extra={po_number:po,po_mapped_by:profile.id,po_mapped_at:now};ns=WORKFLOW_STATUS.ACCEPTED;nstage='GAC_PO'}"
+          s,n=re.subn(pat,repl,s,count=1,flags=re.S)
+          if n!=1: raise SystemExit('PO Mapping pattern not found')
+
+          # Merge Received + Under Process into one tab.
+          pat=r"if\(active==='Received'\)\{.*?if\(active==='Under Process'\).*?\n   \}"
+          repl="if(active==='Received & Under Process'||active==='Received'||active==='Under Process'){\n     if(role===ROLES.VENDOR)return baseVisible.filter(x=>x.current_stage==='VENDOR'&&x.current_status===WORKFLOW_STATUS.PENDING)\n     return baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK].includes(x.current_status))\n   }"
+          s,n=re.subn(pat,repl,s,count=1,flags=re.S)
+          if n!=1: raise SystemExit('Combined tab pattern not found')
+
+          # Add PO controls to the combined tab. Selection checkboxes remain the universal row-selection mechanism.
+          pat=r"function StatusTable\(\{data,role,onAction,title,showWarehouseRemarks=false,history=\[\]\}\)\{const acts=actionsByRole\[role\]\|\|\[\];const isPending=.*?const openDocuments="
+          repl="function StatusTable({data,role,onAction,title,showWarehouseRemarks=false,history=[]}){const acts=actionsByRole[role]||[];const isPending=title==='Pending for Action'||title==='Pending'||title==='Pending for Approval';const isReceivedProcess=title==='Received & Under Process'||title==='Received'||title==='Under Process';const[checked,setChecked]=useState([]);const[poDraft,setPoDraft]=useState({});const[savedPO,setSavedPO]=useState({});const openDocuments="
+          s,n=re.subn(pat,repl,s,count=1,flags=re.S)
+          if n!=1: raise SystemExit('StatusTable pattern not found')
+
+          pat=r"(?:const bulkAccept=.*?;)?const actionButtons=x=>\{if\(isPending\)return"
+          repl="const bulkAccept=async()=>{for(const x of data.filter(r=>checked.includes(r.id)))await onAction(x,'Accept','RECEIVE');setChecked([])};const savePO=async x=>{const po=(poDraft[x.id]||'').trim();if(!po)return;await onAction(x,'PO Mapping',po);setSavedPO(v=>({...v,[x.id]:po}))};const submitPO=async x=>{if(!savedPO[x.id])return;await onAction(x,'Submit')};const actionButtons=x=>{if(isReceivedProcess&&role===ROLES.GAC_PO)return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><input value={poDraft[x.id]||''} onChange={e=>setPoDraft(v=>({...v,[x.id]:e.target.value}))} placeholder='PO Number' style={{minWidth:150}}/><button className='primary' onClick={()=>savePO(x)} disabled={!poDraft[x.id]}>Save</button><button className='link-btn' onClick={()=>savePO(x)} disabled={!poDraft[x.id]}>Change PO</button><button className='primary' onClick={()=>submitPO(x)} disabled={!savedPO[x.id]}>Submit</button></div>;if(isPending)return"
+          s,n=re.subn(pat,repl,s,count=1,flags=re.S)
+          if n!=1: raise SystemExit('action buttons pattern not found')
           p.write_text(s)
       - name: Build and commit
         working-directory: app/frontend
