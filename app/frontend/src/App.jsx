@@ -15,6 +15,7 @@ const stageLabel={VENDOR:'Vendor',WH:'Warehouse',GAC_COMPLIANCE:'GAC — Complia
 const roleStage={WH:'WH',GAC_COMPLIANCE:'GAC_COMPLIANCE',GAC_PO:'GAC_PO',ACCOUNTS:'ACCOUNTS',CBO_OFFICE:'CBO_OFFICE',CBO_OFFICER:'CBO_OFFICER'}
 const actionsByRole={WH:['Accept','Query','Return','Reject','Resubmit to GAC Compliance'],GAC_COMPLIANCE:['Accept','Query','Return','Reject','Compliance Check OK','Compliance Check Rejected'],GAC_PO:['Accept','Query','Return','Reject','PO Mapping'],ACCOUNTS:['Accept','Query','Return','Reject','Paid'],CBO_OFFICE:['Accept','Query','Return','Reject'],CBO_OFFICER:['Approve','Query','Return','Reject']}
 const exceptionStatuses=[WORKFLOW_STATUS.QUERY,WORKFLOW_STATUS.RETURNED,WORKFLOW_STATUS.REJECTED]
+const incomingStatuses=[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK]
 const mappingFor=p=>{const seed=P2_USERS.find(x=>x.username===p?.username||x.username===p?.id)||p;return P2_MASTER_MAPPINGS.filter(x=>seed?.role===ROLES.ADMIN||(seed?.role===ROLES.VENDOR?x.vendor===seed.display_name:seed?.role===ROLES.WH?(seed.warehouses||[]).includes(x.warehouse):true))}
 const previousInvoiceMonth=()=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
 
@@ -31,7 +32,7 @@ function App(){
  const roleStageKey=roleStage[role]
  const historyFor=id=>history.filter(h=>h.invoice_id===id)
  const submittedByRole=new Set(history.filter(h=>h.from_stage===roleStageKey&&h.to_stage&&h.to_stage!==roleStageKey).map(h=>h.invoice_id))
- const currentActionData=baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK,...(role===ROLES.ACCOUNTS?[WORKFLOW_STATUS.APPROVED_FOR_PAYMENT]:[])].includes(x.current_status))
+ const currentActionData=baseVisible.filter(x=>x.current_stage===roleStageKey&&incomingStatuses.includes(x.current_status)&&x.current_status!==WORKFLOW_STATUS.ACCEPTED)
  const currentExceptionData=baseVisible.filter(x=>x.current_stage===roleStageKey&&exceptionStatuses.includes(x.current_status))
  const tabData=()=>{
    if(active==='Dashboard'||active==='History Record'||active==='History / Records'||active==='Reports'||active==='All Invoices'||active==='Users & Roles'||active==='Master Data'||active==='Workflow Configuration'||active==='Audit / History'||active==='Impersonation') return baseVisible
