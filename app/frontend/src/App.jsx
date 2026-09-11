@@ -16,6 +16,7 @@ const roleStage={WH:'WH',GAC_COMPLIANCE:'GAC_COMPLIANCE',GAC_PO:'GAC_PO',ACCOUNT
 const actionsByRole={WH:['Accept','Query','Return','Reject','Resubmit to GAC Compliance'],GAC_COMPLIANCE:['Accept','Query','Return','Reject','Compliance Check OK','Compliance Check Rejected'],GAC_PO:['Accept','Query','Return','Reject','PO Mapping'],ACCOUNTS:['Accept','Query','Return','Reject','Paid'],CBO_OFFICE:['Accept','Query','Return','Reject'],CBO_OFFICER:['Approve','Query','Return','Reject']}
 const exceptionStatuses=[WORKFLOW_STATUS.QUERY,WORKFLOW_STATUS.RETURNED,WORKFLOW_STATUS.REJECTED]
 const incomingStatuses=[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK]
+const incomingStatuses=[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK]
 
 
 const mappingFor=p=>{const seed=P2_USERS.find(x=>x.username===p?.username||x.username===p?.id)||p;return P2_MASTER_MAPPINGS.filter(x=>seed?.role===ROLES.ADMIN||(seed?.role===ROLES.VENDOR?x.vendor===seed.display_name:seed?.role===ROLES.WH?(seed.warehouses||[]).includes(x.warehouse):true))}
