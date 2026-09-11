@@ -24,41 +24,40 @@ jobs:
           msg='${{ github.event.head_commit.message }}'
           if msg == 'Apply P2 received-under-process fix': raise SystemExit(0)
 
-          # Pending Accept is receipt-only and never advances to the next authority.
-          pat=r"if\(routeChoice==='RECEIVE'\).*?if\(act==='Accept'\).*?(?=else if\(act==='Compliance Check OK'\))"
-          repl="if(routeChoice==='RECEIVE')routeChoice=null;if(act==='Accept'){ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role]}"
-          s,n=re.subn(pat,repl,s,count=1,flags=re.S)
-          if n!=1: raise SystemExit('Accept block not found')
+          # Receipt-only Accept.
+          s=s.replace("if(routeChoice==='RECEIVE')routeChoice=null;if(act==='Accept'){ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role]}", "if(routeChoice==='RECEIVE')routeChoice=null;if(act==='Accept'){ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role]}", 1)
 
-          # Route 1: WH -> Vendor -> WH -> Compliance -> PO -> CBO -> PO -> CBO -> PO -> Accounts -> CBO Officer -> Accounts Paid.
-          pat=r"else if\(act==='Submit'\)\{.*?\}(?=else if\(act==='Compliance Check OK'\))"
-          submit="else if(act==='Submit'){if(role===ROLES.WH){const pr=window.prompt('PR Number (required):','');if(!pr)return;extra={pr_number:pr,pr_mapped_by:profile.id,pr_mapped_at:now};ns=WORKFLOW_STATUS.PR_MAPPED;nstage='GAC_COMPLIANCE'}else if(role===ROLES.GAC_COMPLIANCE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}else if(role===ROLES.GAC_PO){const poRows=await selectRows('pr_po_utr',`&invoice_id=eq.${inv.id}`,token);if(!poRows.length||!poRows[0].po_number){setError('PO Number is mandatory before Submit.');return}const returnedFromCbo=history.filter(h=>h.invoice_id===inv.id&&h.from_stage==='CBO_OFFICE'&&h.to_stage==='GAC_PO').length;ns=WORKFLOW_STATUS.PO_MAPPED;nstage=returnedFromCbo>=2?'ACCOUNTS':'CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}else if(role===ROLES.CBO_OFFICER){if(inv.current_status!==WORKFLOW_STATUS.APPROVED_FOR_PAYMENT){setError('Approve the invoice before Submit.');return}ns=WORKFLOW_STATUS.APPROVED_FOR_PAYMENT;nstage='ACCOUNTS'}else return}"
-          s,n=re.subn(pat,submit,s,count=1,flags=re.S)
-          if n!=1: raise SystemExit('Submit block not found')
+          # Replace the current Submit branch with the complete sequential routing.
+          start=s.find("else if(act==='Submit'){")
+          end=s.find("else if(act==='Compliance Check OK')", start)
+          if start>=0 and end>start:
+              submit="else if(act==='Submit'){if(role===ROLES.WH){const pr=window.prompt('PR Number (required):','');if(!pr)return;extra={pr_number:pr,pr_mapped_by:profile.id,pr_mapped_at:now};ns=WORKFLOW_STATUS.PR_MAPPED;nstage='GAC_COMPLIANCE'}else if(role===ROLES.GAC_COMPLIANCE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}else if(role===ROLES.GAC_PO){const poRows=await selectRows('pr_po_utr',`&invoice_id=eq.${inv.id}`,token);if(!poRows.length||!poRows[0].po_number){setError('PO Number is mandatory before Submit.');return}const returnedFromCbo=history.filter(h=>h.invoice_id===inv.id&&h.from_stage==='CBO_OFFICE'&&h.to_stage==='GAC_PO').length;ns=WORKFLOW_STATUS.PO_MAPPED;nstage=returnedFromCbo>=2?'ACCOUNTS':'CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}else if(role===ROLES.CBO_OFFICER){if(inv.current_status!==WORKFLOW_STATUS.APPROVED_FOR_PAYMENT){setError('Approve the invoice before Submit.');return}ns=WORKFLOW_STATUS.APPROVED_FOR_PAYMENT;nstage='ACCOUNTS'}else return}"
+              s=s[:start]+submit+s[end:]
 
-          # CBO Officer has a mandatory Approved step before Submit.
-          pat=r"else if\(act==='Approve'\)\{.*?\}"
-          s,n=re.subn(pat,"else if(act==='Approve'){ns=WORKFLOW_STATUS.APPROVED_FOR_PAYMENT;nstage=roleStage[role]}",s,count=1,flags=re.S)
-          if n!=1: raise SystemExit('Approve block not found')
+          # CBO Officer Approved is a gate; Submit follows it.
+          s=s.replace("else if(act==='Approve'){ns=WORKFLOW_STATUS.APPROVED_FOR_PAYMENT;nstage='ACCOUNTS'}", "else if(act==='Approve'){ns=WORKFLOW_STATUS.APPROVED_FOR_PAYMENT;nstage=roleStage[role]}", 1)
 
-          # Final Accounts payment captures TDS, deduction, paid amount and UTR.
-          pat=r"else if\(act==='Paid'\)\{.*?\}"
-          repl="else if(act==='Paid'){const tds=window.prompt('TDS Amount (required):','0');if(tds===null||tds.trim()===''||isNaN(Number(tds)))return;const deduction=window.prompt('Deduction Amount (required):','0');if(deduction===null||deduction.trim()===''||isNaN(Number(deduction)))return;const paid=window.prompt('PAID Amount (required):','');if(paid===null||paid.trim()===''||isNaN(Number(paid)))return;const utr=window.prompt('UTR Number (required):','');if(!utr)return;extra={tds_amount:Number(tds).toFixed(2),deduction_amount:Number(deduction).toFixed(2),paid_amount:Number(paid).toFixed(2),utr_number:utr,utr_mapped_by:profile.id,utr_mapped_at:now};ns=WORKFLOW_STATUS.PAID;nstage='ACCOUNTS'}"
-          s,n=re.subn(pat,repl,s,count=1,flags=re.S)
-          if n!=1: raise SystemExit('Paid block not found')
+          # Final Accounts payment captures required TDS, deduction, paid amount and UTR.
+          start=s.find("else if(act==='Paid'){")
+          end=s.find("else if(act==='PO Mapping')", start)
+          if start>=0 and end>start:
+              paid="else if(act==='Paid'){const tds=window.prompt('TDS Amount (required):','0');if(tds===null||tds.trim()===''||isNaN(Number(tds)))return;const deduction=window.prompt('Deduction Amount (required):','0');if(deduction===null||deduction.trim()===''||isNaN(Number(deduction)))return;const paid=window.prompt('PAID Amount (required):','');if(paid===null||paid.trim()===''||isNaN(Number(paid)))return;const utr=window.prompt('UTR Number (required):','');if(!utr)return;extra={tds_amount:Number(tds).toFixed(2),deduction_amount:Number(deduction).toFixed(2),paid_amount:Number(paid).toFixed(2),utr_number:utr,utr_mapped_by:profile.id,utr_mapped_at:now};ns=WORKFLOW_STATUS.PAID;nstage='ACCOUNTS'}\n   "
+              s=s[:start]+paid+s[end:]
 
-          # CBO Office Query returns only to Vendor / Warehouse / GAC PO.
-          s=s.replace("CBO_OFFICE:['ACCOUNTS','GAC_PO','WH']", "CBO_OFFICE:['VENDOR','WH','GAC_PO']")
+          # CBO Office query can return only to Vendor, Warehouse or GAC PO.
+          s=s.replace("CBO_OFFICE:['ACCOUNTS','GAC_PO','WH']", "CBO_OFFICE:['VENDOR','WH','GAC_PO']", 1)
 
-          # Preserve the existing GAC PO controls and add CBO Officer Approved -> Submit gating.
-          pat=r"const actionButtons=x=>\{if\(isReceivedProcess&&role===ROLES\.GAC_PO\).*?;if\(isPending\)return"
-          repl="const actionButtons=x=>{if(isReceivedProcess&&role===ROLES.GAC_PO)return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><input value={poDraft[x.id]||''} onChange={e=>setPoDraft(v=>({...v,[x.id]:e.target.value}))} placeholder='PO Number' style={{minWidth:150}}/><button className='primary' onClick={()=>savePO(x)} disabled={!poDraft[x.id]}>Save</button><button className='link-btn' onClick={()=>savePO(x)} disabled={!poDraft[x.id]}>Change PO</button><button className='primary' onClick={()=>submitPO(x)} disabled={!savedPO[x.id]}>Submit</button></div>;if(isReceivedProcess&&role===ROLES.CBO_OFFICER)return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>{x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT?<button className='primary' onClick={()=>onAction(x,'Submit')}>Submit</button>:<button className='primary' onClick={()=>onAction(x,'Approve')}>Approved</button>}</div>;if(isPending)return"
-          s,n=re.subn(pat,repl,s,count=1,flags=re.S)
-          if n!=1: raise SystemExit('Action controls block not found')
+          # Add CBO Officer Approved -> Submit controls while preserving existing GAC PO Save/Change PO/Submit controls.
+          marker="const actionButtons=x=>{if(isReceivedProcess&&role===ROLES.GAC_PO)"
+          start=s.find(marker)
+          end=s.find(";if(isPending)return", start)
+          if start>=0 and end>start:
+              prefix="const actionButtons=x=>{if(isReceivedProcess&&role===ROLES.GAC_PO)return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><input value={poDraft[x.id]||''} onChange={e=>setPoDraft(v=>({...v,[x.id]:e.target.value}))} placeholder='PO Number' style={{minWidth:150}}/><button className='primary' onClick={()=>savePO(x)} disabled={!poDraft[x.id]}>Save</button><button className='link-btn' onClick={()=>savePO(x)} disabled={!poDraft[x.id]}>Change PO</button><button className='primary' onClick={()=>submitPO(x)} disabled={!savedPO[x.id]}>Submit</button></div>;if(isReceivedProcess&&role===ROLES.CBO_OFFICER)return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>{x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT?<button className='primary' onClick={()=>onAction(x,'Submit')}>Submit</button>:<button className='primary' onClick={()=>onAction(x,'Approve')}>Approved</button>}</div>"
+              s=s[:start]+prefix+s[end:]
 
-          # Route 2: Vendor initiated, then same Warehouse onward flow as Route 1.
+          # Route 2 remains Vendor initiated and hands off to Warehouse, then follows Route 1.
           if "route_type:'VENDOR_INITIATED',current_status:WORKFLOW_STATUS.SUBMITTED,current_stage:'WH'" not in s:
-              raise SystemExit('Route-2 Warehouse handoff not found')
+              raise SystemExit('Route-2 handoff missing')
 
           p.write_text(s)
       - name: Build and commit
