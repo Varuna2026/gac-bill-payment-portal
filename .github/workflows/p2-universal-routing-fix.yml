@@ -4,31 +4,38 @@ on:
     branches: [development]
 jobs:
   patch:
-    if: github.event.head_commit.message != 'Fix universal P2 routing'
+    if: github.event.head_commit.message != 'Fix universal P2 routing' && github.event.head_commit.message != 'Repair P2 universal routing'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Fix App.jsx
+      - name: Repair App.jsx
         shell: python
         run: |
           from pathlib import Path
           import re
           p=Path('app/frontend/src/App.jsx')
           s=p.read_text()
-          line="const incomingStatuses=[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK]"
-          first=s.find(line)
-          if first >= 0:
-              rest=s[first+len(line):]
-              rest=rest.replace(line,'')
-              s=s[:first+len(line)]+rest
+          # Keep exactly one incomingStatuses declaration, regardless of formatting/newlines.
+          pattern=r"const\s+incomingStatuses\s*=\s*\[[^\]]*\]"
+          matches=list(re.finditer(pattern,s,re.S))
+          if matches:
+              first=matches[0]
+              replacement="const incomingStatuses=[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK]"
+              s=s[:first.start()]+replacement+s[first.end():]
+              matches=list(re.finditer(pattern,s,re.S))
+              for m in reversed(matches[1:]):
+                  s=s[:m.start()]+s[m.end():]
+          # Universal next-stage transfer status.
           s=s.replace("else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.COMPLIANCE_CHECKED;nstage='GAC_PO'}", "else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}")
           s=s.replace("else if(role===ROLES.ACCOUNTS)nstage='CBO_OFFICE';else if(role===ROLES.CBO_OFFICE)nstage='CBO_OFFICER';", "else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}")
-          for label in ['Process History','User Actions']:
-              s=re.sub(r'<th[^>]*>\s*'+re.escape(label)+r'\s*</th>', '', s, flags=re.I)
-              s=re.sub(r'<td[^>]*>\s*(?:<[^>]+>\s*)*'+re.escape(label)+r'\s*(?:</[^>]+>\s*)*</td>', '', s, flags=re.I)
-              s=re.sub(r'<button[^>]*>\s*'+re.escape(label)+r'\s*</button>', '', s, flags=re.I)
+          # Remove Process History / User Actions from StatusTable while retaining History Record elsewhere.
+          s=re.sub(r'<th>Process History / User Actions</th><th>Individual TAT</th>', '<th>Individual TAT</th>', s)
+          s=re.sub(r'<td>\{hx\.length\?hx\.map\(.*?\):\'No prior workflow action recorded\.\'\}</td><td>\{tat\.individual\.duration\}</td>', '<td>{tat.individual.duration}</td>', s, flags=re.S)
+          # Remove now-unused grouped history declarations inside StatusTable if present.
+          s=s.replace("const grouped=history.reduce((m,h)=>{(m[h.invoice_id]||(m[h.invoice_id]=[])).push(h);return m},{});", "")
+          s=s.replace("const hx=grouped[x.id]||[];", "")
           p.write_text(s)
       - name: Build frontend
         working-directory: app/frontend
