@@ -1,11 +1,12 @@
 name: P2 final step fix
+
 on:
   push:
-    branches: [development]
+    branches:
+      - development
 
 jobs:
   fix:
-    if: github.event.head_commit.message != 'Apply P2 received-under-process fix' and github.event.head_commit.message != 'Apply P2 revised GAC PO CBO Office route' and github.event.head_commit.message != 'Implement complete P2 route workflow from specification'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -21,43 +22,36 @@ jobs:
           p=Path('app/frontend/src/App.jsx')
           s=p.read_text()
 
-          # Remove accidental duplicate bulkAccept declarations from prior patches.
+          if 'Implement complete P2 route workflow from specification' in '${{ github.event.head_commit.message }}':
+              raise SystemExit(0)
+
           bulk="const bulkAccept=async()=>{for(const x of data.filter(r=>checked.includes(r.id)))await onAction(x,'Accept','RECEIVE');setChecked([])};"
           s=re.sub(re.escape(bulk)+r'(?:'+re.escape(bulk)+r')+',bulk,s)
 
-          # Receipt acknowledgement is always receipt-only: Pending -> Received & Under Process.
           pat=r"if\(routeChoice==='RECEIVE'\).*?if\(act==='Accept'\).*?(?=else if\(act==='Compliance Check OK'\))"
           repl="if(routeChoice==='RECEIVE')routeChoice=null;if(act==='Accept'){ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role]}"
           s,n=re.subn(pat,repl,s,count=1,flags=re.S)
           if n!=1: raise SystemExit('Accept stage pattern not found')
 
-          # Full sequential Submit routing.
           pat=r"else if\(act==='Submit'\)\{.*?\}(?=else if\(act==='Compliance Check OK'\))"
-          submit="""else if(act==='Submit'){if(role===ROLES.WH){const pr=window.prompt('PR Number (required):','');if(!pr)return;extra={pr_number:pr,pr_mapped_by:profile.id,pr_mapped_at:now};ns=WORKFLOW_STATUS.PR_MAPPED;nstage='GAC_COMPLIANCE'}else if(role===ROLES.GAC_COMPLIANCE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}else if(role===ROLES.GAC_PO){const poRows=await selectRows('pr_po_utr',`&invoice_id=eq.${inv.id}`,token);if(!poRows.length||!poRows[0].po_number){setError('PO Number is mandatory before Submit.');return}const returnedFromCbo=history.filter(h=>h.invoice_id===inv.id&&h.from_stage==='CBO_OFFICE'&&h.to_stage==='GAC_PO').length;ns=WORKFLOW_STATUS.PO_MAPPED;nstage=returnedFromCbo>=2?'ACCOUNTS':'CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}else if(role===ROLES.CBO_OFFICER){if(inv.current_status!==WORKFLOW_STATUS.APPROVED_FOR_PAYMENT){setError('Approve the invoice before Submit.');return}ns=WORKFLOW_STATUS.APPROVED_FOR_PAYMENT;nstage='ACCOUNTS'}else return}"""
-          if re.search(pat,s,re.S): s=re.sub(pat,submit,s,count=1,flags=re.S)
-          else: raise SystemExit('Submit block not found')
+          submit="else if(act==='Submit'){if(role===ROLES.WH){const pr=window.prompt('PR Number (required):','');if(!pr)return;extra={pr_number:pr,pr_mapped_by:profile.id,pr_mapped_at:now};ns=WORKFLOW_STATUS.PR_MAPPED;nstage='GAC_COMPLIANCE'}else if(role===ROLES.GAC_COMPLIANCE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}else if(role===ROLES.GAC_PO){const poRows=await selectRows('pr_po_utr',`&invoice_id=eq.${inv.id}`,token);if(!poRows.length||!poRows[0].po_number){setError('PO Number is mandatory before Submit.');return}const returnedFromCbo=history.filter(h=>h.invoice_id===inv.id&&h.from_stage==='CBO_OFFICE'&&h.to_stage==='GAC_PO').length;ns=WORKFLOW_STATUS.PO_MAPPED;nstage=returnedFromCbo>=2?'ACCOUNTS':'CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}else if(role===ROLES.CBO_OFFICER){if(inv.current_status!==WORKFLOW_STATUS.APPROVED_FOR_PAYMENT){setError('Approve the invoice before Submit.');return}ns=WORKFLOW_STATUS.APPROVED_FOR_PAYMENT;nstage='ACCOUNTS'}else return}"
+          s,n=re.subn(pat,submit,s,count=1,flags=re.S)
+          if n!=1: raise SystemExit('Submit block not found')
 
-          # CBO Officer: Approve is a separate mandatory step; Submit follows it.
           pat=r"else if\(act==='Approve'\)\{.*?\}"
           repl="else if(act==='Approve'){ns=WORKFLOW_STATUS.APPROVED_FOR_PAYMENT;nstage=roleStage[role]}"
           s,n=re.subn(pat,repl,s,count=1,flags=re.S)
           if n!=1: raise SystemExit('Approve block not found')
 
-          # Route-2 is Vendor initiated but then follows Route-1 from Warehouse onward.
-          s=s.replace("route_type:'VENDOR_INITIATED',current_status:WORKFLOW_STATUS.SUBMITTED,current_stage:'WH'", "route_type:'VENDOR_INITIATED',current_status:WORKFLOW_STATUS.SUBMITTED,current_stage:'WH'")
-
-          # Final Accounts payment: capture TDS, deduction, paid amount and UTR, with required fields.
           pat=r"else if\(act==='Paid'\)\{.*?\}"
           repl="else if(act==='Paid'){const tds=window.prompt('TDS Amount (required):','0');if(tds===null||tds.trim()===''||isNaN(Number(tds)))return;const deduction=window.prompt('Deduction Amount (required):','0');if(deduction===null||deduction.trim()===''||isNaN(Number(deduction)))return;const paid=window.prompt('PAID Amount (required):','');if(paid===null||paid.trim()===''||isNaN(Number(paid)))return;const utr=window.prompt('UTR Number (required):','');if(!utr)return;extra={tds_amount:Number(tds).toFixed(2),deduction_amount:Number(deduction).toFixed(2),paid_amount:Number(paid).toFixed(2),utr_number:utr,utr_mapped_by:profile.id,utr_mapped_at:now};ns=WORKFLOW_STATUS.PAID;nstage='ACCOUNTS'}"
           s,n=re.subn(pat,repl,s,count=1,flags=re.S)
           if n!=1: raise SystemExit('Paid block not found')
 
-          # CBO Office Query routing per specification: WH / Vendor / GAC PO only.
           s=s.replace("CBO_OFFICE:['ACCOUNTS','GAC_PO','WH']", "CBO_OFFICE:['VENDOR','WH','GAC_PO']")
 
-          # Combined Received & Under Process tab plus stage-specific controls.
           pat=r"(?:const bulkAccept=.*?;)?const actionButtons=x=>\{if\(isPending\)return"
-          repl="""const bulkAccept=async()=>{for(const x of data.filter(r=>checked.includes(r.id)))await onAction(x,'Accept','RECEIVE');setChecked([])};const savePO=async x=>{const po=(poDraft[x.id]||'').trim();if(!po)return;await onAction(x,'PO Mapping',po);setSavedPO(v=>({...v,[x.id]:po}))};const submitPO=async x=>{if(!savedPO[x.id])return;await onAction(x,'Submit')};const actionButtons=x=>{if(isReceivedProcess&&role===ROLES.GAC_PO)return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><input value={poDraft[x.id]||''} onChange={e=>setPoDraft(v=>({...v,[x.id]:e.target.value}))} placeholder='PO Number' style={{minWidth:150}}/><button className='primary' onClick={()=>savePO(x)} disabled={!poDraft[x.id]}>Save</button><button className='link-btn' onClick={()=>savePO(x)} disabled={!poDraft[x.id]}>Change PO</button><button className='primary' onClick={()=>submitPO(x)} disabled={!savedPO[x.id]}>Submit</button></div>;if(isReceivedProcess&&role===ROLES.CBO_OFFICER)return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>{x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT?<button className='primary' onClick={()=>onAction(x,'Submit')}>Submit</button>:<button className='primary' onClick={()=>onAction(x,'Approve')}>Approved</button>}</div>;if(isPending)return"""
+          repl="const bulkAccept=async()=>{for(const x of data.filter(r=>checked.includes(r.id)))await onAction(x,'Accept','RECEIVE');setChecked([])};const savePO=async x=>{const po=(poDraft[x.id]||'').trim();if(!po)return;await onAction(x,'PO Mapping',po);setSavedPO(v=>({...v,[x.id]:po}))};const submitPO=async x=>{if(!savedPO[x.id])return;await onAction(x,'Submit')};const actionButtons=x=>{if(isReceivedProcess&&role===ROLES.GAC_PO)return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><input value={poDraft[x.id]||''} onChange={e=>setPoDraft(v=>({...v,[x.id]:e.target.value}))} placeholder='PO Number' style={{minWidth:150}}/><button className='primary' onClick={()=>savePO(x)} disabled={!poDraft[x.id]}>Save</button><button className='link-btn' onClick={()=>savePO(x)} disabled={!poDraft[x.id]}>Change PO</button><button className='primary' onClick={()=>submitPO(x)} disabled={!savedPO[x.id]}>Submit</button></div>;if(isReceivedProcess&&role===ROLES.CBO_OFFICER)return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>{x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT?<button className='primary' onClick={()=>onAction(x,'Submit')}>Submit</button>:<button className='primary' onClick={()=>onAction(x,'Approve')}>Approved</button>}</div>;if(isPending)return"
           s,n=re.subn(pat,repl,s,count=1,flags=re.S)
           if n!=1: raise SystemExit('actionButtons insertion point not found')
 
