@@ -17,23 +17,18 @@ jobs:
           import re
           p=Path('app/frontend/src/App.jsx')
           s=p.read_text()
-          # Keep exactly one incomingStatuses declaration, regardless of formatting/newlines.
           pattern=r"const\s+incomingStatuses\s*=\s*\[[^\]]*\]"
+          replacement="const incomingStatuses=[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK]"
           matches=list(re.finditer(pattern,s,re.S))
           if matches:
-              first=matches[0]
-              replacement="const incomingStatuses=[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK]"
-              s=s[:first.start()]+replacement+s[first.end():]
+              s=s[:matches[0].start()]+replacement+s[matches[0].end():]
               matches=list(re.finditer(pattern,s,re.S))
               for m in reversed(matches[1:]):
                   s=s[:m.start()]+s[m.end():]
-          # Universal next-stage transfer status.
           s=s.replace("else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.COMPLIANCE_CHECKED;nstage='GAC_PO'}", "else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}")
           s=s.replace("else if(role===ROLES.ACCOUNTS)nstage='CBO_OFFICE';else if(role===ROLES.CBO_OFFICE)nstage='CBO_OFFICER';", "else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}")
-          # Remove Process History / User Actions from StatusTable while retaining History Record elsewhere.
           s=re.sub(r'<th>Process History / User Actions</th><th>Individual TAT</th>', '<th>Individual TAT</th>', s)
           s=re.sub(r'<td>\{hx\.length\?hx\.map\(.*?\):\'No prior workflow action recorded\.\'\}</td><td>\{tat\.individual\.duration\}</td>', '<td>{tat.individual.duration}</td>', s, flags=re.S)
-          # Remove now-unused grouped history declarations inside StatusTable if present.
           s=s.replace("const grouped=history.reduce((m,h)=>{(m[h.invoice_id]||(m[h.invoice_id]=[])).push(h);return m},{});", "")
           s=s.replace("const hx=grouped[x.id]||[];", "")
           p.write_text(s)
@@ -49,4 +44,6 @@ jobs:
           git add app/frontend/src/App.jsx
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'Fix universal P2 routing'
-          git push
+          git fetch origin development
+          git rebase origin/development
+          git push origin HEAD:development
