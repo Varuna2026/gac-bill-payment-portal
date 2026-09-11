@@ -4,30 +4,45 @@ on:
     branches: [development]
 jobs:
   fix:
-    if: github.event.head_commit.message != 'Apply universal P2 stage fix changes'
+    if: github.event.head_commit.message != 'Apply universal P2 stage fix changes' && github.event.head_commit.message != 'Fix P2 stage patch'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
       - name: Patch App.jsx
+        shell: python
         run: |
-          python - <<'PY'
           from pathlib import Path
+          import re
           p=Path('app/frontend/src/App.jsx')
           s=p.read_text()
-          s=s.replace("const exceptionStatuses=[WORKFLOW_STATUS.QUERY,WORKFLOW_STATUS.RETURNED,WORKFLOW_STATUS.REJECTED]", "const exceptionStatuses=[WORKFLOW_STATUS.QUERY,WORKFLOW_STATUS.RETURNED,WORKFLOW_STATUS.REJECTED]\nconst incomingStatuses=[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK]")
-          s=s.replace("const currentActionData=baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK,...(role===ROLES.ACCOUNTS?[WORKFLOW_STATUS.APPROVED_FOR_PAYMENT]:[])].includes(x.current_status))", "const currentActionData=baseVisible.filter(x=>x.current_stage===roleStageKey&&incomingStatuses.includes(x.current_status)&&x.current_status!==WORKFLOW_STATUS.ACCEPTED)")
-          old="""if(active==='Dashboard'||active==='History Record'||active==='History / Records'||active==='Reports'||active==='All Invoices'||active==='Users & Roles'||active==='Master Data'||active==='Workflow Configuration'||active==='Audit / History'||active==='Impersonation') return baseVisible"""
-          new=old
-          # History is intentionally the only place where workflow action history is shown; no Process History/User Actions dashboard head is added.
-          if old not in s: raise SystemExit('dashboard marker not found')
+          pattern=r"const\s+incomingStatuses\s*=\s*\[[^\]]*\]"
+          replacement="const incomingStatuses=[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK]"
+          matches=list(re.finditer(pattern,s,re.S))
+          if matches:
+              s=s[:matches[0].start()]+replacement+s[matches[0].end():]
+              matches=list(re.finditer(pattern,s,re.S))
+              for m in reversed(matches[1:]):
+                  s=s[:m.start()]+s[m.end():]
+          s=s.replace("else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.COMPLIANCE_CHECKED;nstage='GAC_PO'}", "else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}")
+          s=s.replace("else if(role===ROLES.ACCOUNTS)nstage='CBO_OFFICE';else if(role===ROLES.CBO_OFFICE)nstage='CBO_OFFICER';", "else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}")
+          s=re.sub(r'<th>Process History / User Actions</th><th>Individual TAT</th>', '<th>Individual TAT</th>', s)
+          s=re.sub(r'<td>\{hx\.length\?hx\.map\(.*?\):\'No prior workflow action recorded\.\'\}</td><td>\{tat\.individual\.duration\}</td>', '<td>{tat.individual.duration}</td>', s, flags=re.S)
+          s=s.replace("const grouped=history.reduce((m,h)=>{(m[h.invoice_id]||(m[h.invoice_id]=[])).push(h);return m},{});", "")
+          s=s.replace("const hx=grouped[x.id]||[];", "")
           p.write_text(s)
-          PY
-      - name: Commit patch
+      - name: Build and commit patch
+        working-directory: app/frontend
         run: |
+          npm ci
+          npm run build
+          cd ../..
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add app/frontend/src/App.jsx
-          git diff --cached --quiet || git commit -m "Apply universal P2 stage fix changes"
-          git push
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Fix P2 stage patch'
+          git fetch origin development
+          git rebase origin/development
+          git push origin HEAD:development
