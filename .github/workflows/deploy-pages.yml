@@ -4,6 +4,9 @@ on:
   push:
     branches: [development]
   workflow_dispatch:
+  workflow_run:
+    workflows: ["P2 final step fix"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -16,10 +19,13 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'development')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: development
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -43,6 +49,7 @@ jobs:
           path: app/frontend/dist
 
   deploy:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'development')
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
