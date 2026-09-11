@@ -35,14 +35,17 @@ export const WORKFLOW_STATUS = {
   REJECTED: 'REJECTED',
 }
 
+// Route 1: standard WH-initiated bill flow.
+// Route 2 (Other): starts at Vendor and then follows the same balance of the workflow.
 export const ROUTES = {
   WH_TO_VENDOR: ['WH', 'VENDOR'],
   VENDOR_TO_WH: ['VENDOR', 'WH'],
   WH_TO_GAC_COMPLIANCE: ['WH', 'GAC_COMPLIANCE'],
   GAC_COMPLIANCE_TO_GAC_PO: ['GAC_COMPLIANCE', 'GAC_PO'],
+  GAC_PO_TO_CBO_OFFICE: ['GAC_PO', 'CBO_OFFICE'],
+  CBO_OFFICE_TO_GAC_PO: ['CBO_OFFICE', 'GAC_PO'],
   GAC_PO_TO_ACCOUNTS: ['GAC_PO', 'ACCOUNTS'],
-  ACCOUNTS_TO_CBO_OFFICE: ['ACCOUNTS', 'CBO_OFFICE'],
-  CBO_OFFICE_TO_CBO_OFFICER: ['CBO_OFFICE', 'CBO_OFFICER'],
+  ACCOUNTS_TO_CBO_OFFICER: ['ACCOUNTS', 'CBO_OFFICER'],
   CBO_OFFICER_TO_ACCOUNTS_PAYMENT: ['CBO_OFFICER', 'ACCOUNTS'],
 }
 
