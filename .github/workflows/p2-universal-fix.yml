@@ -1,0 +1,33 @@
+name: P2 universal stage fix
+on:
+  push:
+    branches: [development]
+jobs:
+  fix:
+    if: github.event.head_commit.message != 'Apply universal P2 stage fix changes'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch App.jsx
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/frontend/src/App.jsx')
+          s=p.read_text()
+          s=s.replace("const exceptionStatuses=[WORKFLOW_STATUS.QUERY,WORKFLOW_STATUS.RETURNED,WORKFLOW_STATUS.REJECTED]", "const exceptionStatuses=[WORKFLOW_STATUS.QUERY,WORKFLOW_STATUS.RETURNED,WORKFLOW_STATUS.REJECTED]\nconst incomingStatuses=[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK]")
+          s=s.replace("const currentActionData=baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK,...(role===ROLES.ACCOUNTS?[WORKFLOW_STATUS.APPROVED_FOR_PAYMENT]:[])].includes(x.current_status))", "const currentActionData=baseVisible.filter(x=>x.current_stage===roleStageKey&&incomingStatuses.includes(x.current_status)&&x.current_status!==WORKFLOW_STATUS.ACCEPTED)")
+          old="""if(active==='Dashboard'||active==='History Record'||active==='History / Records'||active==='Reports'||active==='All Invoices'||active==='Users & Roles'||active==='Master Data'||active==='Workflow Configuration'||active==='Audit / History'||active==='Impersonation') return baseVisible"""
+          new=old
+          # History is intentionally the only place where workflow action history is shown; no Process History/User Actions dashboard head is added.
+          if old not in s: raise SystemExit('dashboard marker not found')
+          p.write_text(s)
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/frontend/src/App.jsx
+          git diff --cached --quiet || git commit -m "Apply universal P2 stage fix changes"
+          git push
