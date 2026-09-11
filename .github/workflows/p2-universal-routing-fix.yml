@@ -4,40 +4,43 @@ on:
     branches: [development]
 jobs:
   patch:
+    if: github.event.head_commit.message != 'Fix failed universal routing patch workflow' && github.event.head_commit.message != 'Fix universal P2 routing'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - name: Patch workflow rules and dashboard history
+      - name: Fix App.jsx
         shell: python
         run: |
           from pathlib import Path
           import re
           p=Path('app/frontend/src/App.jsx')
           s=p.read_text()
-          old="else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.COMPLIANCE_CHECKED;nstage='GAC_PO'}"
-          new="else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}"
-          s=s.replace(old,new)
-          old="else if(role===ROLES.ACCOUNTS)nstage='CBO_OFFICE';else if(role===ROLES.CBO_OFFICE)nstage='CBO_OFFICER';"
-          new="else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER';}"
-          s=s.replace(old,new)
-          # Process History / User Actions belong only in History Record, never normal dashboard tables.
+          line="const incomingStatuses=[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK]"
+          # Remove duplicate declarations created by the failed patch.
+          first=s.find(line)
+          if first >= 0:
+              rest=s[first+len(line):]
+              rest=rest.replace(line,'')
+              s=s[:first+len(line)]+rest
+          s=s.replace("else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.COMPLIANCE_CHECKED;nstage='GAC_PO'}", "else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}")
+          s=s.replace("else if(role===ROLES.ACCOUNTS)nstage='CBO_OFFICE';else if(role===ROLES.CBO_OFFICE)nstage='CBO_OFFICER';", "else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}")
           for label in ['Process History','User Actions']:
-              s=re.sub(r'<th[^>]*>\\s*'+re.escape(label)+r'\\s*</th>', '', s, flags=re.I)
-              s=re.sub(r'<td[^>]*>\\s*(?:<[^>]+>\\s*)*'+re.escape(label)+r'\\s*(?:</[^>]+>\\s*)*</td>', '', s, flags=re.I)
-              s=re.sub(r'<button[^>]*>\\s*'+re.escape(label)+r'\\s*</button>', '', s, flags=re.I)
+              s=re.sub(r'<th[^>]*>\s*'+re.escape(label)+r'\s*</th>', '', s, flags=re.I)
+              s=re.sub(r'<td[^>]*>\s*(?:<[^>]+>\s*)*'+re.escape(label)+r'\s*(?:</[^>]+>\s*)*</td>', '', s, flags=re.I)
+              s=re.sub(r'<button[^>]*>\s*'+re.escape(label)+r'\s*</button>', '', s, flags=re.I)
           p.write_text(s)
       - name: Build frontend
         working-directory: app/frontend
         run: |
           npm ci
           npm run build
-      - name: Commit patch
+      - name: Commit fix
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add app/frontend/src/App.jsx
-          git diff --cached --quiet && exit 0
-          git commit -m 'Fix universal next-stage routing and hide process history controls'
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Fix universal P2 routing'
           git push
