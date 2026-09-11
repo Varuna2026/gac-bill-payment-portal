@@ -31,7 +31,7 @@ jobs:
           if "./components/P2Reports" not in s:
               s=s.replace("import './App.css'", "import './App.css'\nimport P2Reports from './components/P2Reports'\nimport P2Admin from './components/P2Admin'")
           target='<StatusTable data={renderedData} role={role} title={active} onAction={doAction} showWarehouseRemarks={role===ROLES.VENDOR||role===ROLES.WH} history={history}/>'
-          repl="{active==='Reports'?<P2Reports data={scopedData} role={role}/>:active==='All Invoices'||active==='Users & Roles'||active==='Master Data'||active==='Workflow Configuration'||active==='Audit / History'||active==='Impersonation'?<P2Admin data={data} profile={profile} role={role} token={token} refresh={refreshData} active={active}/>:<StatusTable data={renderedData} role={role} title={active} onAction={doAction} showWarehouseRemarks={role===ROLES.VENDOR||role===ROLES.WH} history={history}/> }"
+          repl="active==='Reports'?<P2Reports data={scopedData} role={role}/>:active==='All Invoices'||active==='Users & Roles'||active==='Master Data'||active==='Workflow Configuration'||active==='Audit / History'||active==='Impersonation'?<P2Admin data={data} profile={profile} role={role} token={token} refresh={refreshData} active={active}/>:<StatusTable data={renderedData} role={role} title={active} onAction={doAction} showWarehouseRemarks={role===ROLES.VENDOR||role===ROLES.WH} history={history}/>"
           if target in s: s=s.replace(target,repl,1)
           s=s.replace('<footer>All Rights Reserved © 2026 GAC Bill Payment Portal</footer>','<footer>© 2026 DB All Rights Reserved GAC Bill Payment Portal</footer>')
           oldlogin='</form></div></div>}'
@@ -60,16 +60,14 @@ jobs:
           cat > app/frontend/src/components/P2Admin.jsx <<'EOF'
           import { useEffect, useState } from 'react'
           import { selectRows, insertRows, updateRows, deleteRows } from '../services/supabaseRest'
-          const TABLES={
-            'All Invoices':'invoice_records','Users & Roles':'users','Master Data':'vendor_warehouse_map','Workflow Configuration':'vendor_warehouse_map','Audit / History':'workflow_history','Impersonation':'users'
-          }
-          export default function P2Admin({data,profile,token,refresh,active}){
-            const table=TABLES[active]||'invoice_records';const [rows,setRows]=useState(data||[]),[selected,setSelected]=useState(null),[msg,setMsg]=useState('')
+          const TABLES={'All Invoices':'invoice_records','Users & Roles':'users','Master Data':'vendor_warehouse_map','Workflow Configuration':'vendor_warehouse_map','Audit / History':'workflow_history','Impersonation':'users'}
+          export default function P2Admin({data,token,refresh,active}){
+            const table=TABLES[active]||'invoice_records';const [rows,setRows]=useState(data||[]),[msg,setMsg]=useState('')
             useEffect(()=>{let ok=true;selectRows(table,'&order=created_at.desc',token).then(r=>ok&&setRows(r)).catch(()=>ok&&setRows(table==='invoice_records'?(data||[]):[]));return()=>{ok=false}},[table,token,refresh,data])
             const edit=async r=>{const raw=window.prompt('Modify record as JSON',JSON.stringify(r,null,2));if(!raw)return;try{const next=JSON.parse(raw);delete next.id;await updateRows(table,`id=eq.${r.id}`,next,token);setMsg('Admin modification saved.');refresh()}catch(e){setMsg(e.message)}}
             const add=async()=>{const raw=window.prompt(`Add ${table} record as JSON`,table==='invoice_records'?'{"id":"INV-NEW","inv_no":"","current_status":"DRAFT","current_stage":"ADMIN"}':'{}');if(!raw)return;try{const r=JSON.parse(raw);if(!r.id)r.id=`ADMIN-${Date.now()}`;await insertRows(table,[r],token);setMsg('Admin record added.');refresh()}catch(e){setMsg(e.message)}}
             const remove=async r=>{if(!window.confirm(`Delete ${r.inv_no||r.name||r.code||r.id}?`))return;try{await deleteRows(table,`id=eq.${r.id}`,token);setMsg('Admin record deleted.');refresh()}catch(e){setMsg(e.message)}}
-            return <section className="panel"><div className="panel-heading"><div><h2>System Admin — {active}</h2><p>GOD / Super Admin • unrestricted A-to-Z administration</p></div><div><button className="primary" onClick={add}>Add</button></div></div>{msg&&<div className="notice">{msg}</div>}<div className="admin-table-tools"><span>Table: <b>{table}</b></span><span>{rows.length} record(s)</span></div><div className="table-wrap"><table><thead><tr>{Object.keys(rows[0]||{id:'',name:'',status:''}).slice(0,12).map(k=><th key={k}>{k}</th>)}<th>Admin Action</th></tr></thead><tbody>{rows.map(r=><tr key={r.id}>{Object.keys(r).slice(0,12).map(k=><td key={k}>{typeof r[k]==='object'?JSON.stringify(r[k]):String(r[k]??'')}</td>)}<td><button onClick={()=>edit(r)}>Modify</button> <button onClick={()=>remove(r)}>Delete</button></td></tr>)}</tbody></table>{!rows.length&&<div className="empty-state">No records.</div>}</div></section>
+            return <section className="panel"><div className="panel-heading"><div><h2>System Admin — {active}</h2><p>GOD / Super Admin • unrestricted A-to-Z administration</p></div><button className="primary" onClick={add}>Add</button></div>{msg&&<div className="notice">{msg}</div>}<div className="admin-table-tools"><span>Table: <b>{table}</b></span><span>{rows.length} record(s)</span></div><div className="table-wrap"><table><thead><tr>{Object.keys(rows[0]||{id:'',name:'',status:''}).slice(0,12).map(k=><th key={k}>{k}</th>)}<th>Admin Action</th></tr></thead><tbody>{rows.map(r=><tr key={r.id}>{Object.keys(r).slice(0,12).map(k=><td key={k}>{typeof r[k]==='object'?JSON.stringify(r[k]):String(r[k]??'')}</td>)}<td><button onClick={()=>edit(r)}>Modify</button> <button onClick={()=>remove(r)}>Delete</button></td></tr>)}</tbody></table>{!rows.length&&<div className="empty-state">No records.</div>}</div></section>
           }
           EOF
           cat >> app/frontend/src/App.css <<'EOF'
