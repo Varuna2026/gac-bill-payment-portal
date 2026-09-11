@@ -1,0 +1,39 @@
+name: P2 final step fix
+on:
+  push:
+    branches: [development]
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: development
+      - name: Fix pending Accept routing and duplicate declaration
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/frontend/src/App.jsx')
+          s=p.read_text()
+          duplicate=";const bulkAccept=async()=>{for(const x of data.filter(r=>checked.includes(r.id)))await onAction(x,'Accept','RECEIVE');setChecked([])};const bulkAccept=async()=>{for(const x of data.filter(r=>checked.includes(r.id)))await onAction(x,'Accept','RECEIVE');setChecked([])};const actionButtons=x=>"
+          single=";const bulkAccept=async()=>{for(const x of data.filter(r=>checked.includes(r.id)))await onAction(x,'Accept','RECEIVE');setChecked([])};const actionButtons=x=>"
+          s=s.replace(duplicate,single,1)
+          s=s.replace("if(routeChoice==='RECEIVE'){ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role];}else if(act==='Accept'){","if(routeChoice==='RECEIVE'){routeChoice=null;}if(act==='Accept'){",1)
+          p.write_text(s)
+          PY
+      - name: Build and commit
+        run: |
+          cd app/frontend
+          npm ci
+          npm run build
+          cd ../..
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/frontend/src/App.jsx .github/workflows/p2-final-step-fix.yml
+          git rm .github/workflows/p2-pending-accept-routing-fix.yml 2>/dev/null || true
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix P2 pending accept workflow"
+          git push origin HEAD:development
