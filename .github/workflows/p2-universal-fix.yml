@@ -4,7 +4,7 @@ on:
     branches: [development]
 jobs:
   fix:
-    if: github.event.head_commit.message != 'Apply universal P2 stage fix changes' && github.event.head_commit.message != 'Fix P2 stage patch'
+    if: github.event.head_commit.message != 'Apply universal P2 stage fix changes' && github.event.head_commit.message != 'Fix P2 stage patch' && github.event.head_commit.message != 'Fix universal pending action gate'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -27,10 +27,18 @@ jobs:
                   s=s[:m.start()]+s[m.end():]
           s=s.replace("else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.COMPLIANCE_CHECKED;nstage='GAC_PO'}", "else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}")
           s=s.replace("else if(role===ROLES.ACCOUNTS)nstage='CBO_OFFICE';else if(role===ROLES.CBO_OFFICE)nstage='CBO_OFFICER';", "else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}")
+          s=s.replace("if(act==='Accept'){ns=WORKFLOW_STATUS.ACCEPTED;", "if(routeChoice==='RECEIVE'){ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role];}else if(act==='Accept'){ns=WORKFLOW_STATUS.ACCEPTED;")
+          s=s.replace("return baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED].includes(x.current_status))", "return baseVisible.filter(x=>x.current_stage===roleStageKey&&x.current_status===WORKFLOW_STATUS.ACCEPTED)")
           s=re.sub(r'<th>Process History / User Actions</th><th>Individual TAT</th>', '<th>Individual TAT</th>', s)
           s=re.sub(r'<td>\{hx\.length\?hx\.map\(.*?\):\'No prior workflow action recorded\.\'\}</td><td>\{tat\.individual\.duration\}</td>', '<td>{tat.individual.duration}</td>', s, flags=re.S)
           s=s.replace("const grouped=history.reduce((m,h)=>{(m[h.invoice_id]||(m[h.invoice_id]=[])).push(h);return m},{});", "")
           s=s.replace("const hx=grouped[x.id]||[];", "")
+          s=s.replace("function StatusTable({data,role,onAction,title,showWarehouseRemarks=false,history=[]}){const acts=actionsByRole[role]||[];const openDocuments=", "function StatusTable({data,role,onAction,title,showWarehouseRemarks=false,history=[]}){const acts=actionsByRole[role]||[];const isPending=title==='Pending for Action'||title==='Pending'||title==='Pending for Approval';const[checked,setChecked]=useState([]);const openDocuments=")
+          s=s.replace("const actionButtons=x=>{if(role===ROLES.VENDOR)", "const actionButtons=x=>{if(isPending)return <div style={{display:'flex',gap:6,flexWrap:'wrap'}}><button className=\"link-btn\" onClick={()=>openDocuments(x)}>View</button><button className=\"primary\" onClick={()=>onAction(x,'Accept','RECEIVE')}>Accept</button></div>;if(role===ROLES.VENDOR)")
+          s=s.replace(";const actionButtons=x=>", ";const bulkAccept=async()=>{for(const x of data.filter(r=>checked.includes(r.id)))await onAction(x,'Accept','RECEIVE');setChecked([])};const actionButtons=x=>", 1)
+          s=s.replace("<div className=\"panel-heading\"><div><h2>{title}</h2><p>{data.length} record(s)</p></div></div>", "<div className=\"panel-heading\"><div><h2>{title}</h2><p>{data.length} record(s)</p></div>{isPending&&data.length>0&&<button className=\"primary\" disabled={!checked.length} onClick={bulkAccept}>Accept Selected{checked.length?` (${checked.length})`:''}</button>}</div>")
+          s=s.replace("<thead><tr><th>Inv No</th>", "<thead><tr>{isPending&&<th><input type=\"checkbox\" checked={isPending&&data.length>0&&checked.length===data.length} onChange={e=>setChecked(e.target.checked?data.map(x=>x.id):[])} aria-label=\"Select all invoices\"/></th>}<th>Inv No</th>")
+          s=s.replace("return <tr key={x.id}><td><b>{x.inv_no||'—'}</b></td>", "return <tr key={x.id}>{isPending&&<td><input type=\"checkbox\" checked={checked.includes(x.id)} onChange={()=>setChecked(v=>v.includes(x.id)?v.filter(id=>id!==x.id):[...v,x.id])} aria-label={`Select ${x.inv_no||x.id}`}/></td>}<td><b>{x.inv_no||'—'}</b></td>")
           p.write_text(s)
       - name: Build and commit patch
         working-directory: app/frontend
@@ -42,7 +50,7 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add app/frontend/src/App.jsx
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Fix P2 stage patch'
+          git commit -m 'Fix universal pending action gate'
           git fetch origin development
           git rebase origin/development
           git push origin HEAD:development
