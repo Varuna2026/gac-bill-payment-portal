@@ -40,15 +40,15 @@ jobs:
           pat=r"if\(active==='Received'\)\{.*?if\(active==='Under Process'\).*?\n   \}"
           repl="if(active==='Received & Under Process'||active==='Received'||active==='Under Process'){\n     if(role===ROLES.VENDOR)return baseVisible.filter(x=>x.current_stage==='VENDOR'&&x.current_status===WORKFLOW_STATUS.PENDING)\n     return baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK].includes(x.current_status))\n   }"
           s,n=re.subn(pat,repl,s,count=1,flags=re.S)
-          if n!=1: raise SystemExit('Combined tab pattern not found')
+          if n>1: raise SystemExit('Multiple combined tab patterns found')
           pat=r"function StatusTable\(\{data,role,onAction,title,showWarehouseRemarks=false,history=\[\]\}\)\{const acts=actionsByRole\[role\]\|\|\[\];const isPending=.*?const openDocuments="
           repl="function StatusTable({data,role,onAction,title,showWarehouseRemarks=false,history=[]}){const acts=actionsByRole[role]||[];const isPending=title==='Pending for Action'||title==='Pending'||title==='Pending for Approval';const isReceivedProcess=title==='Received & Under Process'||title==='Received'||title==='Under Process';const[checked,setChecked]=useState([]);const[poDraft,setPoDraft]=useState({});const[savedPO,setSavedPO]=useState({});const openDocuments="
           s,n=re.subn(pat,repl,s,count=1,flags=re.S)
-          if n!=1: raise SystemExit('StatusTable pattern not found')
+          if n>1: raise SystemExit('Multiple StatusTable patterns found')
           pat=r"(?:const bulkAccept=.*?;)?const actionButtons=x=>\{if\(isPending\)return"
           repl="const bulkAccept=async()=>{for(const x of data.filter(r=>checked.includes(r.id)))await onAction(x,'Accept','RECEIVE');setChecked([])};const savePO=async x=>{const po=(poDraft[x.id]||'').trim();if(!po)return;await onAction(x,'PO Mapping',po);setSavedPO(v=>({...v,[x.id]:po}))};const submitPO=async x=>{if(!savedPO[x.id])return;await onAction(x,'Submit')};const actionButtons=x=>{if(isReceivedProcess&&role===ROLES.GAC_PO)return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><input value={poDraft[x.id]||''} onChange={e=>setPoDraft(v=>({...v,[x.id]:e.target.value}))} placeholder='PO Number' style={{minWidth:150}}/><button className='primary' onClick={()=>savePO(x)} disabled={!poDraft[x.id]}>Save</button><button className='link-btn' onClick={()=>savePO(x)} disabled={!poDraft[x.id]}>Change PO</button><button className='primary' onClick={()=>submitPO(x)} disabled={!savedPO[x.id]}>Submit</button></div>;if(isPending)return"
           s,n=re.subn(pat,repl,s,count=1,flags=re.S)
-          if n!=1: raise SystemExit('action buttons pattern not found')
+          if n>1: raise SystemExit('Multiple action button patterns found')
           p.write_text(s)
       - name: Build and commit
         working-directory: app/frontend
