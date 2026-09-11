@@ -4,7 +4,7 @@ on:
     branches: [development]
 jobs:
   fix:
-    if: github.event.head_commit.message != 'Apply universal P2 stage fix changes' && github.event.head_commit.message != 'Fix P2 stage patch' && github.event.head_commit.message != 'Fix universal pending action gate'
+    if: github.event.head_commit.message != 'Apply universal P2 stage fix changes' && github.event.head_commit.message != 'Fix P2 stage patch' && github.event.head_commit.message != 'Fix P2 pending gate code'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -50,7 +50,7 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add app/frontend/src/App.jsx
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Fix universal pending action gate'
+          git commit -m 'Fix P2 pending gate code'
           git fetch origin development
           git rebase origin/development
           git push origin HEAD:development
