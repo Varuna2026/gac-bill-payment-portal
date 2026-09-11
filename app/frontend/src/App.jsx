@@ -16,8 +16,8 @@ const roleStage={WH:'WH',GAC_COMPLIANCE:'GAC_COMPLIANCE',GAC_PO:'GAC_PO',ACCOUNT
 const actionsByRole={WH:['Accept','Query','Return','Reject','Resubmit to GAC Compliance'],GAC_COMPLIANCE:['Accept','Query','Return','Reject','Compliance Check OK','Compliance Check Rejected'],GAC_PO:['Accept','Query','Return','Reject','PO Mapping'],ACCOUNTS:['Accept','Query','Return','Reject','Paid'],CBO_OFFICE:['Accept','Query','Return','Reject'],CBO_OFFICER:['Approve','Query','Return','Reject']}
 const exceptionStatuses=[WORKFLOW_STATUS.QUERY,WORKFLOW_STATUS.RETURNED,WORKFLOW_STATUS.REJECTED]
 const incomingStatuses=[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK]
-const incomingStatuses=[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK]
-const incomingStatuses=[WORKFLOW_STATUS.SUBMITTED,WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.COMPLIANCE_CHECKED,WORKFLOW_STATUS.PO_MAPPED,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK]
+
+
 const mappingFor=p=>{const seed=P2_USERS.find(x=>x.username===p?.username||x.username===p?.id)||p;return P2_MASTER_MAPPINGS.filter(x=>seed?.role===ROLES.ADMIN||(seed?.role===ROLES.VENDOR?x.vendor===seed.display_name:seed?.role===ROLES.WH?(seed.warehouses||[]).includes(x.warehouse):true))}
 const previousInvoiceMonth=()=>{const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-1);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
 
@@ -53,8 +53,8 @@ function App(){
  }
  const refreshData=()=>setRefresh(x=>x+1)
  const doAction=async(inv,act,routeChoice)=>{const now=new Date().toISOString();let ns=inv.current_status,nstage=inv.current_stage,extra={}
-   if(act==='Accept'){ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role];if(role===ROLES.WH){const pr=window.prompt('PR Number (required):','');if(!pr)return;extra={pr_number:pr,pr_mapped_by:profile.id,pr_mapped_at:now};ns=WORKFLOW_STATUS.PR_MAPPED;nstage='GAC_COMPLIANCE'}else if(role===ROLES.GAC_COMPLIANCE){nstage='GAC_COMPLIANCE'}else if(role===ROLES.GAC_PO){const po=window.prompt('PO Number (required):','');if(!po)return;extra={po_number:po,po_mapped_by:profile.id,po_mapped_at:now};ns=WORKFLOW_STATUS.PO_MAPPED;nstage='ACCOUNTS'}else if(role===ROLES.ACCOUNTS)nstage='CBO_OFFICE';else if(role===ROLES.CBO_OFFICE)nstage='CBO_OFFICER';else if(role===ROLES.CBO_OFFICER){ns=WORKFLOW_STATUS.APPROVED_FOR_PAYMENT;nstage='ACCOUNTS'}}
-   else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.COMPLIANCE_CHECKED;nstage='GAC_PO'}
+   if(act==='Accept'){ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role];if(role===ROLES.WH){const pr=window.prompt('PR Number (required):','');if(!pr)return;extra={pr_number:pr,pr_mapped_by:profile.id,pr_mapped_at:now};ns=WORKFLOW_STATUS.PR_MAPPED;nstage='GAC_COMPLIANCE'}else if(role===ROLES.GAC_COMPLIANCE){nstage='GAC_COMPLIANCE'}else if(role===ROLES.GAC_PO){const po=window.prompt('PO Number (required):','');if(!po)return;extra={po_number:po,po_mapped_by:profile.id,po_mapped_at:now};ns=WORKFLOW_STATUS.PO_MAPPED;nstage='ACCOUNTS'}else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}else if(role===ROLES.CBO_OFFICER){ns=WORKFLOW_STATUS.APPROVED_FOR_PAYMENT;nstage='ACCOUNTS'}}
+   else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}
    else if(act==='Compliance Check Rejected'){const choice=routeChoice||window.prompt('Type 1 for Send Back to Warehouse or 2 for Send Back to Vendor','1');if(choice==='WH')nstage='WH';else if(choice==='VENDOR')nstage='VENDOR';else return;ns=WORKFLOW_STATUS.RETURNED}
    else if(act==='Resubmit to GAC Compliance'){ns=WORKFLOW_STATUS.PR_MAPPED;nstage='GAC_COMPLIANCE'}
    else if(act==='Vendor Resubmit'){ns=WORKFLOW_STATUS.SUBMITTED;nstage='WH'}
