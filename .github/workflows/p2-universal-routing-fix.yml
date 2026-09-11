@@ -1,0 +1,43 @@
+name: P2 universal routing fix
+on:
+  push:
+    branches: [development]
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch workflow rules and dashboard history
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          p=Path('app/frontend/src/App.jsx')
+          s=p.read_text()
+          old="else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.COMPLIANCE_CHECKED;nstage='GAC_PO'}"
+          new="else if(act==='Compliance Check OK'){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}"
+          s=s.replace(old,new)
+          old="else if(role===ROLES.ACCOUNTS)nstage='CBO_OFFICE';else if(role===ROLES.CBO_OFFICE)nstage='CBO_OFFICER';"
+          new="else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER';}"
+          s=s.replace(old,new)
+          # Process History / User Actions belong only in History Record, never normal dashboard tables.
+          for label in ['Process History','User Actions']:
+              s=re.sub(r'<th[^>]*>\\s*'+re.escape(label)+r'\\s*</th>', '', s, flags=re.I)
+              s=re.sub(r'<td[^>]*>\\s*(?:<[^>]+>\\s*)*'+re.escape(label)+r'\\s*(?:</[^>]+>\\s*)*</td>', '', s, flags=re.I)
+              s=re.sub(r'<button[^>]*>\\s*'+re.escape(label)+r'\\s*</button>', '', s, flags=re.I)
+          p.write_text(s)
+      - name: Build frontend
+        working-directory: app/frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/frontend/src/App.jsx
+          git diff --cached --quiet && exit 0
+          git commit -m 'Fix universal next-stage routing and hide process history controls'
+          git push
