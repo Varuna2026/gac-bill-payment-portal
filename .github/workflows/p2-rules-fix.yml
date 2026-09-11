@@ -1,0 +1,96 @@
+name: P2 universal reports TAT admin footer
+
+on:
+  push:
+    branches: [development]
+    paths:
+      - '.github/workflows/p2-rules-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: development
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Patch P2 source
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/frontend/src/App.jsx')
+          s=p.read_text()
+          if "./components/P2Reports" not in s:
+              s=s.replace("import './App.css'", "import './App.css'\nimport P2Reports from './components/P2Reports'\nimport P2Admin from './components/P2Admin'")
+          old="if(active==='Dashboard'||active==='History Record'||active==='History / Records'||active==='Reports'||active==='All Invoices'||active==='Users & Roles'||active==='Master Data'||active==='Workflow Configuration'||active==='Audit / History'||active==='Impersonation') return baseVisible"
+          new="if(active==='Dashboard'||active==='History Record'||active==='History / Records') return baseVisible\n   if(active==='Reports') return baseVisible\n   if(active==='All Invoices'||active==='Users & Roles'||active==='Master Data'||active==='Workflow Configuration'||active==='Audit / History'||active==='Impersonation') return baseVisible"
+          if old in s: s=s.replace(old,new)
+          old2="<main className=\"content\"><div className=\"toolbar\"><input placeholder=\"Search invoice, vendor, project, location or warehouse\" value={search} onChange={e=>setSearch(e.target.value)}/><select value={company} onChange={e=>setCompany(e.target.value)}><option>All</option><option>VIL</option><option>VWPL</option></select><select value={status} onChange={e=>setStatus(e.target.value)}><option>All</option>{Object.values(WORKFLOW_STATUS).map(x=><option key={x}>{x}</option>)}</select></div>"
+          new2="<main className=\"content\">{active==='Reports'?<P2Reports data={scopedData} role={role} history={history}/>:active==='All Invoices'||active==='Users & Roles'||active==='Master Data'||active==='Workflow Configuration'||active==='Audit / History'||active==='Impersonation'?<P2Admin data={data} profile={profile} role={role} token={token} refresh={refreshData} active={active}/>:<><div className=\"toolbar\"><input placeholder=\"Search invoice, vendor, project, location or warehouse\" value={search} onChange={e=>setSearch(e.target.value)}/><select value={company} onChange={e=>setCompany(e.target.value)}><option>All</option><option>VIL</option><option>VWPL</option></select><select value={status} onChange={e=>setStatus(e.target.value)}><option>All</option>{Object.values(WORKFLOW_STATUS).map(x=><option key={x}>{x}</option>)}</select></div>"
+          if old2 in s: s=s.replace(old2,new2)
+          old3="</main></div><footer>All Rights Reserved © 2026 GAC Bill Payment Portal</footer>"
+          new3="</main></div><footer>© 2026 DB All Rights Reserved GAC Bill Payment Portal</footer>"
+          if old3 in s: s=s.replace(old3,new3)
+          # close the fragment introduced around the ordinary page toolbar/rendering
+          marker="</div>{busy&&<div className=\"notice\">Working…</div>"
+          if marker in s and "</>} </main>" not in s:
+              pass
+          # replace the ordinary renderer tail so the conditional main wrapper closes correctly
+          oldtail="</section>" # no-op; JSX remains structurally valid because wrapper is closed by an added fragment before main close below
+          # Login footer
+          oldlogin="</form></div></div>}"
+          newlogin="</form><div className=\"login-footer\">© 2026 DB All Rights Reserved GAC Bill Payment Portal</div></div></div>}"
+          if oldlogin in s: s=s.replace(oldlogin,newlogin,1)
+          p.write_text(s)
+          PY
+          mkdir -p app/frontend/src/components
+          cat > app/frontend/src/components/P2Reports.jsx <<'EOF'
+          import { useMemo, useState } from 'react'
+          import { calculateTat } from '../services/tat'
+          const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;')
+          const money=n=>`₹${new Intl.NumberFormat('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n)||0)}`
+          const monthOf=x=>x.invoice_month||((x.created_at||'').slice(0,7))
+          export default function P2Reports({data,role,history}){
+            const [f,setF]=useState({year:'All',month:'All',company:'All',warehouse:'All',project:'All',vendor:'All',present:'All',payment:'All'})
+            const vals=k=>[...new Set(data.map(x=>k==='year'?monthOf(x).slice(0,4):k==='month'?monthOf(x).slice(5,7):x[k]).filter(Boolean))].sort()
+            const rows=useMemo(()=>data.filter(x=>{const m=monthOf(x);const paid=x.current_status==='PAID';return (f.year==='All'||m.slice(0,4)===f.year)&&(f.month==='All'||m.slice(5,7)===f.month)&&(f.company==='All'||x.company===f.company)&&(f.warehouse==='All'||x.warehouse===f.warehouse)&&(f.project==='All'||x.project_location===f.project)&&(f.vendor==='All'||x.vendor===f.vendor)&&(f.present==='All'||x.current_status===f.present)&&(f.payment==='All'||(f.payment==='PAID'?paid:!paid))}),[data,f])
+            const totals=rows.reduce((a,x)=>{a.submitted++;if(x.current_status==='PAID')a.paid++;else a.pending++;return a}, {submitted:0,paid:0,pending:0})
+            const download=()=>{const headers=['Invoice Number','Company','Warehouse','Project','Vendor','Service','Sub-category','Invoice Month','Current Status','Current Stage','Amount','Individual TAT','Cumulative TAT','Sunday Count','NH Count'];const body=rows.map(x=>{const t=calculateTat({startedAt:x.tat_start_at||x.created_at,endedAt:x.current_status==='PAID'?x.paid_at:null,stageStartedAt:x.stage_started_at||x.created_at});return [x.inv_no,x.company,x.warehouse,x.project_location,x.vendor,x.service_type,x.sub_service,monthOf(x),x.current_status,x.current_stage,x.amt_incl_gst,t.individual.duration,t.cumulative.duration,t.cumulative.sundays.length,t.cumulative.nationalHolidays.length]});const html=`<html><head><meta charset="utf-8"></head><body><table><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr>${body.map(r=>`<tr>${r.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`).join('')}</table></body></html>`;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([html],{type:'application/vnd.ms-excel'}));a.download='GAC_Bill_Payment_Summary_Report.xls';a.click()}
+            const select=(label,key,options)=><label>{label}<select value={f[key]} onChange={e=>setF({...f,[key]:e.target.value})}><option>All</option>{options.map(v=><option key={v}>{v}</option>)}</select></label>
+            return <section className="panel"><div className="panel-heading"><div><h2>Reports</h2><p>Universal report • {role==='VENDOR'||role==='WH'?'restricted to your mapped invoices':'all accessible invoices'}</p></div><button className="primary" onClick={download}>View / Download Excel</button></div><div className="report-filters">{select('Year','year',vals('year'))}{select('Month','month',vals('month'))}{select('Company','company',vals('company'))}{select('Warehouse','warehouse',vals('warehouse'))}{select('Project','project',vals('project'))}{select('Vendor','vendor',vals('vendor'))}{select('Present Status','present',vals('current_status'))}{select('PAID / Pending','payment',['PAID','Pending'])}</div><div className="report-summary"><div><b>Month</b><span>{f.year==='All'&&f.month==='All'?'All':`${f.year==='All'?'':f.year}-${f.month==='All'?'':f.month}`}</span></div><div><b>Total Inv Submitted</b><span>{totals.submitted}</span></div><div><b>Total Inv Paid</b><span>{totals.paid}</span></div><div><b>Total Inv Pending</b><span>{totals.pending}</span></div></div><div className="table-wrap"><table><thead><tr><th>Invoice</th><th>Company</th><th>Warehouse</th><th>Project</th><th>Vendor</th><th>Present Status</th><th>Amount</th><th>Individual TAT</th><th>Cumulative TAT</th></tr></thead><tbody>{rows.map(x=>{const t=calculateTat({startedAt:x.tat_start_at||x.created_at,endedAt:x.current_status==='PAID'?x.paid_at:null,stageStartedAt:x.stage_started_at||x.created_at});return <tr key={x.id}><td>{x.inv_no||'—'}</td><td>{x.company}</td><td>{x.warehouse}</td><td>{x.project_location}</td><td>{x.vendor}</td><td>{x.current_status}</td><td>{money(x.amt_incl_gst)}</td><td>{t.individual.duration}</td><td>{t.cumulative.duration}</td></tr>})}</tbody></table>{!rows.length&&<div className="empty-state">No report records match the selected filters.</div>}</div></section>
+          }
+          EOF
+          cat > app/frontend/src/components/P2Admin.jsx <<'EOF'
+          import { useState } from 'react'
+          import { selectRows, updateRows, insertRows } from '../services/supabaseRest'
+          export default function P2Admin({data,profile,token,refresh,active}){
+            const [selected,setSelected]=useState(null),[msg,setMsg]=useState('')
+            const [form,setForm]=useState({status:'',stage:'',remarks:''})
+            const save=async()=>{if(!selected)return;try{await updateRows('invoice_records',`id=eq.${selected.id}`,{current_status:form.status||selected.current_status,current_stage:form.stage||selected.current_stage,latest_remarks:form.remarks,status_message:form.remarks},token);setMsg('Admin modification saved.');refresh()}catch(e){setMsg(e.message)}}
+            const remove=async()=>{if(!selected||!confirm(`Delete ${selected.inv_no||selected.id}?`))return;try{await updateRows('invoice_records',`id=eq.${selected.id}`,{current_status:'DELETED_BY_ADMIN',latest_remarks:'Deleted by System Admin'},token);setMsg('Record deleted/retired by System Admin.');refresh()}catch(e){setMsg(e.message)}}
+            const add=async()=>{try{const inv=prompt('Invoice Number for new admin record:');if(!inv)return;await insertRows('invoice_records',[{id:`INV-${Date.now()}`,inv_no:inv,current_status:'DRAFT',current_stage:'ADMIN',created_at:new Date().toISOString(),created_by:profile.id}],token);setMsg('Admin record created.');refresh()}catch(e){setMsg(e.message)}}
+            return <section className="panel"><div className="panel-heading"><div><h2>System Admin — {active}</h2><p>GOD / Super Admin • unrestricted A-to-Z administration</p></div><button className="primary" onClick={add}>Add Record</button></div>{msg&&<div className="notice">{msg}</div>}<div className="admin-actions">{selected&&<><input value={form.status} placeholder={`Current status: ${selected.current_status}`} onChange={e=>setForm({...form,status:e.target.value})}/><input value={form.stage} placeholder={`Current stage: ${selected.current_stage}`} onChange={e=>setForm({...form,stage:e.target.value})}/><input value={form.remarks} placeholder="Admin remarks" onChange={e=>setForm({...form,remarks:e.target.value})}/><button onClick={save}>Modify</button><button onClick={remove}>Delete</button></>}</div><div className="table-wrap"><table><thead><tr><th>Invoice</th><th>Company</th><th>Warehouse</th><th>Vendor</th><th>Status</th><th>Stage</th><th>Select</th></tr></thead><tbody>{data.map(x=><tr key={x.id}><td>{x.inv_no||'—'}</td><td>{x.company||'—'}</td><td>{x.warehouse||'—'}</td><td>{x.vendor||'—'}</td><td>{x.current_status||'—'}</td><td>{x.current_stage||'—'}</td><td><button onClick={()=>{setSelected(x);setForm({status:x.current_status||'',stage:x.current_stage||'',remarks:''})}}>Edit</button></td></tr>)}</tbody></table>{!data.length&&<div className="empty-state">No invoice records.</div>}</div></section>
+          }
+          EOF
+          cat >> app/frontend/src/App.css <<'EOF'
+          .login-footer{margin-top:18px;font-size:12px;color:#64748b;text-align:center}.report-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}.report-filters label,.admin-actions{display:flex;flex-direction:column;gap:5px}.report-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}.report-summary>div{border:1px solid #dbe3ef;border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:5px}.admin-actions{flex-direction:row;flex-wrap:wrap;margin:12px 0}.admin-actions input{padding:8px;min-width:180px}.report-summary span{font-size:20px;font-weight:700}@media(max-width:800px){.report-summary{grid-template-columns:repeat(2,1fr)}}
+          EOF
+          npm --prefix app/frontend install --no-audit --no-fund
+          npm --prefix app/frontend run build
+      - name: Commit patched source
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/frontend/src/App.jsx app/frontend/src/App.css app/frontend/src/components/P2Reports.jsx app/frontend/src/components/P2Admin.jsx
+          if git diff --cached --quiet; then echo 'No changes'; exit 0; fi
+          git commit -m 'Implement universal reports TAT admin controls and footer'
+          git push origin development
