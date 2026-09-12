@@ -30,24 +30,16 @@ jobs:
           from pathlib import Path
           p=Path('app/frontend/src/App.jsx')
           s=p.read_text()
-          old="function Dashboard({data,role,nav}){const now=new Date();const monthKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;const monthCount=data.filter(x=>String(x.created_at||'').slice(0,7)===monthKey).length;const monthLabel=now.toLocaleString('en-IN',{month:'long'});const cards=[['Total',data.length],['Submitted',data.filter(x=>x.current_status===WORKFLOW_STATUS.SUBMITTED).length],['Pending',data.filter(x=>[WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.PO_MAPPED].includes(x.current_status)).length],['Approved',data.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT).length],['Paid',data.filter(x=>x.current_status===WORKFLOW_STATUS.PAID).length],['Month',monthCount]];return <div><section className=\"cards\">{cards.map(([a,b])=><div className=\"card\" key={a}><div>{a==='Month'?monthLabel:a}</div><strong>{b}</strong></div>)}</section></div>}"
-          new="function Dashboard({data,role,nav}){const now=new Date();const monthKey=previousInvoiceMonth();const monthCount=data.filter(x=>String(x.created_at||'').slice(0,7)===monthKey).length;const monthLabel=now.toLocaleString('en-IN',{month:'long'});const previousLabel=new Date(`${monthKey}-01T00:00:00`).toLocaleString('en-IN',{month:'short',year:'2-digit'});const cards=[['Total',data.length],['Submitted',data.filter(x=>x.current_status===WORKFLOW_STATUS.SUBMITTED).length],['Pending',data.filter(x=>[WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.PO_MAPPED].includes(x.current_status)).length],['Approved',data.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT).length],['Paid',data.filter(x=>x.current_status===WORKFLOW_STATUS.PAID).length],['Month',monthCount]];return <div><section className=\"cards\">{cards.map(([a,b])=><div className=\"card\" key={a}><div>{a==='Month'?monthLabel:a}</div><strong>{b}</strong>{a==='Month'&&<small>{previousLabel}</small>}</div>)}</section></div>}"
-          if old in s:
-            s=s.replace(old,new,1)
-            print('Updated Dashboard Month score to previous invoice month.')
-          else:
-            print('Dashboard month implementation already current or not matched.')
-          bad="window.prompt(`Remarks for ${act} (optional):`,'')||''\n   try"
-          good="window.prompt(`Remarks for ${act} (optional):`,'')||'')\n   try"
-          if bad in s:
-            s=s.replace(bad,good,1)
-            print('Repaired Accounts payment-stage remarks expression.')
-          required=["current_status===WORKFLOW_STATUS.ACCEPTED","TDS Amount","Deduction Amount","Total Amount","UTR No","Payment details entered"]
-          for x in required:
-            if x not in s: raise SystemExit(f'Missing Accounts payment-stage implementation: {x}')
-          if "window.prompt('TDS Amount" in s or "P2_ACCOUNTS_APPROVED_FOR_PAYMENT_HANDLER_GUARD" in s:
-            raise SystemExit('Old Accounts popup/gate implementation is still present')
+          import re
+          new_dashboard="""function Dashboard({data,role,nav}){const invoiceMonths=[...new Set(data.map(x=>String(x.invoice_month||x.month||'').trim()).filter(Boolean))].sort().reverse();const fallbackMonth=data.length?String(data[0].created_at||'').slice(0,7):'';const monthKey=invoiceMonths[0]||fallbackMonth;const monthLabel=monthKey?new Date(`${monthKey}-01T00:00:00`).toLocaleString('en-IN',{month:'short',year:'2-digit'}):'—';const cards=[['Month',monthLabel],['Total',data.length],['Submitted',data.filter(x=>x.current_status===WORKFLOW_STATUS.SUBMITTED).length],['Pending',data.filter(x=>[WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.PO_MAPPED].includes(x.current_status)).length],['Approved',data.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT).length],['Paid',data.filter(x=>x.current_status===WORKFLOW_STATUS.PAID).length]];return <div><section className=\"cards\">{cards.map(([a,b])=><div className=\"card\" key={a}><div>{a}</div><strong>{b}</strong></div>)}</section></div>}"""
+          s,n=re.subn(r'function Dashboard\(\{data,role,nav\}\)\{.*?\n\nfunction StatusTable',new_dashboard+'\n\nfunction StatusTable',s,count=1,flags=re.S)
+          if n!=1: raise SystemExit('Dashboard function replacement failed')
           p.write_text(s)
+          css=Path('app/frontend/src/App.css')
+          c=css.read_text()
+          c=c.replace('.cards{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:12px;margin:18px 0}', '.cards{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin:18px 0}')
+          c += '\n/* P2 Dashboard: six scorecards remain in one horizontal line, starting with Month. */\n.cards{grid-template-columns:repeat(6,minmax(0,1fr));}\n.card{min-width:0;}\n'
+          css.write_text(c)
           PY
 
       - name: Commit repaired source
@@ -55,8 +47,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if ! git diff --quiet; then
-            git add app/frontend/src/App.jsx
-            git commit -m "P2: show previous invoice month on dashboard"
+            git add app/frontend/src/App.jsx app/frontend/src/App.css
+            git commit -m "P2: dashboard month uses invoice month and six cards"
             git push origin HEAD:development
           fi
 
