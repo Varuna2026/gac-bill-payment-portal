@@ -23,3 +23,11 @@
 /* P2 Dashboard: six scorecards remain in one horizontal line, starting with Month. */
 .cards{grid-template-columns:repeat(6,minmax(0,1fr));}
 .card{min-width:0;}
+
+/* P2 requested text-only title/footer changes. */
+.app-title{font-size:0}
+.app-title::after{content:'GAC Vendor Bill Payment Portal';font-size:20px}
+.login-title{font-size:0}
+.login-title::after{content:'GAC Vendor Bill Payment Portal';font-size:21px}
+footer{font-size:0}
+footer::after{content:'Copyright © 2026 DB. All rights reserved';font-size:11px}
