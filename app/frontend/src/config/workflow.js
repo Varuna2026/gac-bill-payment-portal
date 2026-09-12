@@ -70,3 +70,5 @@ export const SERVICE_RULES = {
 
 export const isApplicableService = (contractType, serviceType) =>
   SERVICE_RULES[serviceType]?.includes(contractType) ?? false
+
+// P2 workflow matrix is enforced centrally in gitDatabase.js.
