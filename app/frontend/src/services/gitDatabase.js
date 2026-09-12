@@ -1,7 +1,6 @@
 import { P2_MASTER_MAPPINGS, P2_USERS } from '../data/p2Seed'
 
-// Fresh-test database generation. The previous R&D browser database is intentionally
-discarded so every browser starts with an empty transaction set while master data/users remain.
+// Fresh-test database generation. The previous R&D browser database is intentionally discarded so every browser starts with an empty transaction set while master data/users remain.
 const LEGACY_DB_KEY='p2_rnd_database_v1'
 const DB_KEY='p2_rnd_database_v2_clean_test'
 try{localStorage.removeItem(LEGACY_DB_KEY)}catch{}
@@ -20,6 +19,7 @@ function assertTransition(row,v){const role=sessionProfile()?.role;if(!role||rol
  if(nst==='REJECTED'&& !remarks)fail('Remarks are mandatory when an invoice is rejected')
  if(role==='VENDOR'&&status==='RETURNED'&&ns==='WH'&&nst==='SUBMITTED')return
  if(role==='WH'&&status==='SUBMITTED'&&ns==='WH'&&nst==='ACCEPTED')return
+  if(role==='WH'&&status==='ACCEPTED'&&ns==='WH'&&nst==='ACCEPTED')return
  if(role==='WH'&&status==='SUBMITTED'&&ns==='GAC_COMPLIANCE'&&nst==='PR_MAPPED')return
  if(role==='WH'&&status==='RETURNED'&&ns==='GAC_COMPLIANCE'&&nst==='PR_MAPPED')return
  if(role==='GAC_COMPLIANCE'&&['SUBMITTED','PR_MAPPED'].includes(status)&&ns==='GAC_COMPLIANCE'&&nst==='ACCEPTED')return
