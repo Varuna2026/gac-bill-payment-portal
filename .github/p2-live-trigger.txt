@@ -1,1 +1,1 @@
-P2 Accounts payment-stage correction deployment trigger — final.
+P2 Accounts payment-stage correction deployment trigger — final verified deployment.
