@@ -24,31 +24,59 @@ jobs:
           ref: development
           fetch-depth: 0
 
-      - name: Enforce Accounts approved-for-payment UI gate
+      - name: Apply Accounts payment-stage workflow
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
           p = Path('app/frontend/src/App.jsx')
           s = p.read_text()
-          marker = 'P2_ACCOUNTS_APPROVED_FOR_PAYMENT_UI_GUARD'
-          changed = False
-          if marker not in s:
-              guard = "/* P2_ACCOUNTS_APPROVED_FOR_PAYMENT_UI_GUARD */\n   if(isPending&&role===ROLES.ACCOUNTS&&x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT&&x.current_stage===roleStage[role])return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><button className='link-btn' onClick={()=>openDocuments(x)}>View</button><button className='primary' onClick={()=>onAction(x,'Paid')}>Paid</button></div>;\n   "
-              if 'if(isPending)return' not in s:
-                  raise SystemExit('Accounts UI guard anchor not found; no source change made.')
-              s = s.replace('if(isPending)return', guard + 'if(isPending)return', 1)
-              changed = True
-          # Keep the action handler defensive even if an old UI bundle sends Accept.
-          if 'P2_ACCOUNTS_APPROVED_FOR_PAYMENT_HANDLER_GUARD' not in s:
-              handler_guard = "/* P2_ACCOUNTS_APPROVED_FOR_PAYMENT_HANDLER_GUARD */\n   if(role===ROLES.ACCOUNTS&&act==='Accept'&&inv.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT&&inv.current_stage===roleStage[role]){setError('Accounts: Approved for Payment can only be marked Paid. Accept is not permitted.');return}\n   "
-              anchor = "const doAction=async(inv,act,routeChoice)=>{const now=new Date().toISOString();let ns=inv.current_status,nstage=inv.current_stage,extra={}\n"
-              if anchor not in s:
-                  raise SystemExit('Accounts handler guard anchor not found; no source change made.')
-              s = s.replace(anchor, anchor + handler_guard, 1)
-              changed = True
-          if changed:
-              p.write_text(s)
+          original = s
+
+          old_guard = "/* P2_ACCOUNTS_APPROVED_FOR_PAYMENT_HANDLER_GUARD */\n   if(role===ROLES.ACCOUNTS&&act==='Accept'&&inv.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT&&inv.current_stage===roleStage[role]){setError('Accounts: Approved for Payment can only be marked Paid. Accept is not permitted.');return}\n   "
+          s = s.replace(old_guard, '', 1)
+
+          old_paid = "else if(act==='Paid'){const tds=window.prompt('TDS Amount (required):','0');if(tds===null||tds.trim()===''||isNaN(Number(tds)))return;const deduction=window.prompt('Deduction Amount (required):','0');if(deduction===null||deduction.trim()===''||isNaN(Number(deduction)))return;const paid=window.prompt('PAID Amount (required):','');if(paid===null||paid.trim()===''||isNaN(Number(paid)))return;const utr=window.prompt('UTR Number (required):','');if(!utr)return;extra={tds_amount:Number(tds).toFixed(2),deduction_amount:Number(deduction).toFixed(2),paid_amount:Number(paid).toFixed(2),utr_number:utr,utr_mapped_by:profile.id,utr_mapped_at:now};ns=WORKFLOW_STATUS.PAID;nstage='ACCOUNTS'}"
+          new_paid = "else if(act==='Paid'){const p=routeChoice||{};if(p.tds_amount===''||p.deduction_amount===''||p.total_amount===''||!String(p.reason||'').trim()||!String(p.utr_number||'').trim()||!Number.isFinite(Number(p.tds_amount))||!Number.isFinite(Number(p.deduction_amount))||!Number.isFinite(Number(p.total_amount))){setError('Enter TDS Amount, Deduction Amount, Reason, Total Amount and UTR Number before Paid.');return}extra={tds_amount:Number(p.tds_amount).toFixed(2),deduction_amount:Number(p.deduction_amount).toFixed(2),paid_amount:Number(p.total_amount).toFixed(2),utr_number:String(p.utr_number).trim(),utr_mapped_by:profile.id,utr_mapped_at:now};actionRemarks=`Payment details entered — TDS: ₹${Number(p.tds_amount).toFixed(2)}, Deduction: ₹${Number(p.deduction_amount).toFixed(2)}, Reason: ${String(p.reason).trim()}, Total Amount: ₹${Number(p.total_amount).toFixed(2)}, UTR: ${String(p.utr_number).trim()}`;ns=WORKFLOW_STATUS.PAID;nstage='ACCOUNTS'}"
+          if old_paid not in s:
+              raise SystemExit('Old Paid prompt branch not found; no source change made.')
+          s = s.replace(old_paid, new_paid, 1)
+
+          old_do = "const doAction=async(inv,act,routeChoice)=>{const now=new Date().toISOString();let ns=inv.current_status,nstage=inv.current_stage,extra={}"
+          new_do = "const doAction=async(inv,act,routeChoice)=>{const now=new Date().toISOString();let ns=inv.current_status,nstage=inv.current_stage,extra={},actionRemarks=''"
+          if old_do not in s:
+              raise SystemExit('doAction declaration anchor not found; no source change made.')
+          s = s.replace(old_do, new_do, 1)
+          old_remarks = "const remarks=act==='Accept'&&role===ROLES.GAC_COMPLIANCE?'Accepted & Under Process by GAC Compliance':act==='Compliance Check OK'?"
+          new_remarks = "const remarks=actionRemarks|| (act==='Accept'&&role===ROLES.GAC_COMPLIANCE?'Accepted & Under Process by GAC Compliance':act==='Compliance Check OK'?"
+          if old_remarks not in s:
+              raise SystemExit('Remarks anchor not found; no source change made.')
+          s = s.replace(old_remarks, new_remarks, 1)
+
+          old_state = "const[checked,setChecked]=useState([]);const[poDraft,setPoDraft]=useState({});const[savedPO,setSavedPO]=useState({});const[prDraft,setPrDraft]=useState({});const[savedPR,setSavedPR]=useState({});"
+          new_state = "const[checked,setChecked]=useState([]);const[poDraft,setPoDraft]=useState({});const[savedPO,setSavedPO]=useState({});const[prDraft,setPrDraft]=useState({});const[savedPR,setSavedPR]=useState({});const[paymentDraft,setPaymentDraft]=useState({});"
+          if old_state not in s:
+              raise SystemExit('StatusTable state anchor not found; no source change made.')
+          s = s.replace(old_state, new_state, 1)
+
+          old_buttons_anchor = "const submitToGAC=async x=>{const pr=(savedPR[x.id]||prDraft[x.id]||x.pr_number||'').trim();if(!pr)return;await onAction({...x,pr_number:pr},'Submit to GAC Compliance')};const actionButtons=x=>{"
+          new_buttons_anchor = "const submitToGAC=async x=>{const pr=(savedPR[x.id]||prDraft[x.id]||x.pr_number||'').trim();if(!pr)return;await onAction({...x,pr_number:pr},'Submit to GAC Compliance')};const savePayment=async x=>{const p=paymentDraft[x.id]||{};if(p.tds_amount===''||p.deduction_amount===''||p.total_amount===''||!String(p.reason||'').trim()||!String(p.utr_number||'').trim())return;await onAction(x,'Paid',p)};const actionButtons=x=>{"
+          if old_buttons_anchor not in s:
+              raise SystemExit('StatusTable action anchor not found; no source change made.')
+          s = s.replace(old_buttons_anchor, new_buttons_anchor, 1)
+
+          old_ui = "const actionButtons=x=>{if(isReceivedProcess&&role===ROLES.WH)return"
+          new_ui = "const actionButtons=x=>{if(isReceivedProcess&&role===ROLES.ACCOUNTS&&x.current_status===WORKFLOW_STATUS.ACCEPTED){const p=paymentDraft[x.id]||{};const setP=(k,v)=>setPaymentDraft(d=>({...d,[x.id]:{...(d[x.id]||{}),[k]:v}}));const ready=p.tds_amount!==''&&p.deduction_amount!==''&&p.total_amount!==''&&String(p.reason||'').trim()&&String(p.utr_number||'').trim()&&Number.isFinite(Number(p.tds_amount))&&Number.isFinite(Number(p.deduction_amount))&&Number.isFinite(Number(p.total_amount));return <div style={{display:'grid',gridTemplateColumns:'repeat(5,minmax(130px,1fr))',gap:6,alignItems:'end'}}><label>TDS Amount<input type='number' min='0' step='0.01' value={p.tds_amount??''} onChange={e=>setP('tds_amount',e.target.value)} placeholder='TDS Amount'/></label><label>Deduction Amount<input type='number' min='0' step='0.01' value={p.deduction_amount??''} onChange={e=>setP('deduction_amount',e.target.value)} placeholder='Deduction Amount'/></label><label>Reason<input value={p.reason??''} onChange={e=>setP('reason',e.target.value)} placeholder='Reason'/></label><label>Total Amount<input type='number' min='0' step='0.01' value={p.total_amount??''} onChange={e=>setP('total_amount',e.target.value)} placeholder='Total Amount'/></label><label>UTR No<input value={p.utr_number??''} onChange={e=>setP('utr_number',e.target.value)} placeholder='UTR No'/></label><button className='primary' onClick={()=>savePayment(x)} disabled={!ready}>Paid</button></div>;}if(isReceivedProcess&&role===ROLES.WH)return"
+          if old_ui not in s:
+              raise SystemExit('Accounts Received UI anchor not found; no source change made.')
+          s = s.replace(old_ui, new_ui, 1)
+
+          old_pending_guard = "/* P2_ACCOUNTS_APPROVED_FOR_PAYMENT_UI_GUARD */\n   if(isPending&&role===ROLES.ACCOUNTS&&x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT&&x.current_stage===roleStage[role])return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><button className='link-btn' onClick={()=>openDocuments(x)}>View</button><button className='primary' onClick={()=>onAction(x,'Paid')}>Paid</button></div>;\n   "
+          s = s.replace(old_pending_guard, '', 1)
+
+          if s == original:
+              raise SystemExit('No Accounts payment changes were made.')
+          p.write_text(s)
+          print('Accounts payment-stage correction applied.')
           PY
 
       - name: Commit source correction
@@ -56,10 +84,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if git diff --quiet; then
-            echo "Accounts gate source already corrected."
+            echo "No source changes to commit."
           else
             git add app/frontend/src/App.jsx
-            git commit -m "Fix Accounts approved-for-payment action gate"
+            git commit -m "Fix Accounts payment-stage data entry flow"
             git push origin HEAD:development
           fi
 
