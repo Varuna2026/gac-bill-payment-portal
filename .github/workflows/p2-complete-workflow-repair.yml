@@ -16,56 +16,46 @@ jobs:
         with:
           ref: development
           fetch-depth: 0
-
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: app/frontend/package-lock.json
-
       - name: Repair App workflow transitions
         shell: python
         run: |
           from pathlib import Path
-          p=Path('app/frontend/src/App.jsx')
-          s=p.read_text()
+          p=Path('app/frontend/src/App.jsx'); s=p.read_text()
           old="const actionsByRole={WH:['Accept','Map PR','Submit to GAC Compliance','Query','Return','Reject','Resubmit to GAC Compliance'],GAC_COMPLIANCE:['Accept','Query','Return','Reject','Compliance Check OK','Compliance Check Rejected'],GAC_PO:['Accept','Query','Return','Reject','PO Mapping'],ACCOUNTS:['Accept','Query','Return','Reject','Paid'],CBO_OFFICE:['Accept','Query','Return','Reject'],CBO_OFFICER:['Approve','Query','Return','Reject']}"
           new="const actionsByRole={WH:['Accept','Map PR','Submit to GAC Compliance','Query','Return','Reject','Resubmit to GAC Compliance'],GAC_COMPLIANCE:['Accept','Query','Return','Reject','Compliance Check OK','Compliance Check Rejected'],GAC_PO:['Accept','Query','Return','Reject','PO Mapping','Submit'],ACCOUNTS:['Accept','Query','Return','Reject','Paid'],CBO_OFFICE:['Accept','Query','Return','Reject','Submit'],CBO_OFFICER:['Approve','Query','Return','Reject']}"
           if old not in s: raise SystemExit('actionsByRole pattern not found')
           s=s.replace(old,new,1)
           old="else if(role===ROLES.GAC_PO){const poRows=await selectRows('pr_po_utr',`&invoice_id=eq.${inv.id}`,token);if(!poRows.length||!poRows[0].po_number){setError('PO Number is mandatory before Submit.');return}const returnedFromCbo=history.filter(h=>h.invoice_id===inv.id&&h.from_stage==='CBO_OFFICE'&&h.to_stage==='GAC_PO').length;ns=WORKFLOW_STATUS.PO_MAPPED;nstage=returnedFromCbo>=2?'ACCOUNTS':'CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='GAC_PO'}else if(role===ROLES.ACCOUNTS)"
           new="else if(role===ROLES.GAC_PO){const poRows=await selectRows('pr_po_utr',`&invoice_id=eq.${inv.id}`,token);if(!poRows.length||!poRows[0].po_number){setError('PO Number is mandatory before Submit.');return}ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICE'}else if(role===ROLES.CBO_OFFICE){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}else if(role===ROLES.ACCOUNTS)"
-          if old not in s: raise SystemExit('GAC PO/CBO submit pattern not found')
+          if old not in s: raise SystemExit('submit pattern not found')
           s=s.replace(old,new,1)
           old="else if(act==='PO Mapping'){const po=(routeChoice||'').trim();if(!po)return;extra={po_number:po,po_mapped_by:profile.id,po_mapped_at:now};ns=WORKFLOW_STATUS.ACCEPTED;nstage='GAC_PO'}"
           new="else if(act==='PO Mapping'){const po=(routeChoice||'').trim();if(!po)return;extra={po_number:po,po_mapped_by:profile.id,po_mapped_at:now};ns=WORKFLOW_STATUS.PO_MAPPED;nstage='GAC_PO'}"
-          if old not in s: raise SystemExit('PO Mapping pattern not found')
+          if old not in s: raise SystemExit('PO mapping pattern not found')
           s=s.replace(old,new,1)
           old="else if(act==='Approve'){ns=WORKFLOW_STATUS.APPROVED_FOR_PAYMENT;nstage=roleStage[role]}"
           new="else if(act==='Approve'){ns=WORKFLOW_STATUS.APPROVED_FOR_PAYMENT;nstage='ACCOUNTS'}"
           if old not in s: raise SystemExit('Approve pattern not found')
           s=s.replace(old,new,1)
           p.write_text(s)
-
       - name: Repair central workflow gate
         shell: python
         run: |
           from pathlib import Path
-          p=Path('app/frontend/src/services/gitDatabase.js')
-          s=p.read_text()
-          s=s.replace("if(ok('GAC_PO','ACCEPTED','GAC_PO','PO_MAPPED'))return", "if(ok('GAC_PO','ACCEPTED','GAC_PO','PO_MAPPED'))return")
-          s=s.replace("if(ok('GAC_PO','PO_MAPPED','GAC_OFFICE','SUBMITTED'))return\n", "")
-          s=s.replace("if(ok('GAC_PO','PO_MAPPED','CBO_OFFICE','SUBMITTED'))return\n", "if(ok('GAC_PO','PO_MAPPED','CBO_OFFICE','SUBMITTED'))return\n")
+          p=Path('app/frontend/src/services/gitDatabase.js'); s=p.read_text()
+          s=s.replace("if(ok('GAC_PO','PO_MAPPED','GAC_OFFICE','SUBMITTED'))return\n","")
           old="if(ok('GAC_PO','PO_MAPPED','ACCOUNTS','PO_MAPPED'))return\nif(ok('ACCOUNTS','PO_MAPPED','ACCOUNTS','ACCEPTED'))return\nif(ok('ACCOUNTS','PO_MAPPED','CBO_OFFICE','SUBMITTED'))return\nif(ok('ACCOUNTS','ACCEPTED','ACCOUNTS','ACCEPTED'))return\nif(ok('ACCOUNTS','ACCEPTED','CBO_OFFICER','SUBMITTED'))return\nif(ok('CBO_OFFICE','SUBMITTED','CBO_OFFICE','ACCEPTED'))return\nif(ok('CBO_OFFICE','ACCEPTED','CBO_OFFICE','ACCEPTED'))return\nif(ok('CBO_OFFICE','SUBMITTED','CBO_OFFICER','SUBMITTED'))return\nif(ok('CBO_OFFICER','SUBMITTED','CBO_OFFICER','APPROVED_FOR_PAYMENT'))return\nif(ok('CBO_OFFICER','SUBMITTED','ACCOUNTS','APPROVED_FOR_PAYMENT'))return\nif(ok('ACCOUNTS','APPROVED_FOR_PAYMENT','ACCOUNTS','PAID'))return"
           new="if(ok('GAC_PO','PO_MAPPED','CBO_OFFICE','SUBMITTED'))return\nif(ok('ACCOUNTS','PO_MAPPED','ACCOUNTS','ACCEPTED'))return\nif(ok('ACCOUNTS','ACCEPTED','CBO_OFFICER','SUBMITTED'))return\nif(ok('CBO_OFFICE','SUBMITTED','CBO_OFFICE','ACCEPTED'))return\nif(ok('CBO_OFFICE','ACCEPTED','CBO_OFFICER','SUBMITTED'))return\nif(ok('CBO_OFFICER','SUBMITTED','ACCOUNTS','APPROVED_FOR_PAYMENT'))return\nif(ok('ACCOUNTS','APPROVED_FOR_PAYMENT','ACCOUNTS','PAID'))return"
-          if old not in s: raise SystemExit('central workflow matrix pattern not found')
-          s=s.replace(old,new,1)
-          p.write_text(s)
-
+          if old not in s: raise SystemExit('matrix pattern not found')
+          s=s.replace(old,new,1); p.write_text(s)
       - name: Build frontend
         working-directory: app/frontend
         run: npm ci && npm run build
-
       - name: Commit repaired source
         shell: bash
         run: |
