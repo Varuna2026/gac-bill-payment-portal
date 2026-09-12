@@ -1,0 +1,44 @@
+name: P2 GAC PO mapped tab fix
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-po-mapped-tab:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout development
+        uses: actions/checkout@v4
+        with:
+          ref: development
+          fetch-depth: 0
+
+      - name: Fix PO_MAPPED tab classification
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/frontend/src/App.jsx')
+          s = p.read_text()
+          old1 = "const currentActionData=baseVisible.filter(x=>x.current_stage===roleStageKey&&incomingStatuses.includes(x.current_status)&&x.current_status!==WORKFLOW_STATUS.ACCEPTED)"
+          new1 = "const currentActionData=baseVisible.filter(x=>x.current_stage===roleStageKey&&incomingStatuses.includes(x.current_status)&&x.current_status!==WORKFLOW_STATUS.ACCEPTED&&x.current_status!==WORKFLOW_STATUS.PO_MAPPED)"
+          old2 = "return baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK].includes(x.current_status))"
+          new2 = "return baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK,WORKFLOW_STATUS.PO_MAPPED].includes(x.current_status))"
+          if old1 not in s:
+              raise SystemExit('Expected currentActionData expression not found')
+          if old2 not in s:
+              raise SystemExit('Expected Received & Under Process expression not found')
+          s = s.replace(old1, new1, 1).replace(old2, new2, 1)
+          p.write_text(s)
+          PY
+
+      - name: Commit source fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/frontend/src/App.jsx
+          git diff --cached --quiet && { echo "No source change required"; exit 0; }
+          git commit -m "Fix PO mapped invoice stays in GAC PO process tab"
+          git push origin development
