@@ -19,7 +19,8 @@ function assertTransition(row,v){const role=sessionProfile()?.role;if(!role||rol
  if(nst==='REJECTED'&& !remarks)fail('Remarks are mandatory when an invoice is rejected')
  if(role==='VENDOR'&&status==='RETURNED'&&ns==='WH'&&nst==='SUBMITTED')return
  if(role==='WH'&&status==='SUBMITTED'&&ns==='WH'&&nst==='ACCEPTED')return
-  if(role==='WH'&&status==='ACCEPTED'&&ns==='WH'&&nst==='ACCEPTED')return
+ if(role==='WH'&&status==='ACCEPTED'&&ns==='WH'&&nst==='ACCEPTED')return
+ if(role==='WH'&&status==='ACCEPTED'&&ns==='GAC_COMPLIANCE'&&nst==='PR_MAPPED')return
  if(role==='WH'&&status==='SUBMITTED'&&ns==='GAC_COMPLIANCE'&&nst==='PR_MAPPED')return
  if(role==='WH'&&status==='RETURNED'&&ns==='GAC_COMPLIANCE'&&nst==='PR_MAPPED')return
  if(role==='GAC_COMPLIANCE'&&['SUBMITTED','PR_MAPPED'].includes(status)&&ns==='GAC_COMPLIANCE'&&nst==='ACCEPTED')return
