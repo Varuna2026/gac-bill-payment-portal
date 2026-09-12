@@ -14,6 +14,9 @@ concurrency:
   group: p2-accounts-final
   cancel-in-progress: false
 
+env:
+  P2_HISTORY_MONTH_FILTER: '1'
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -34,7 +37,30 @@ jobs:
           new_dashboard="""function Dashboard({data,role,nav}){const invoiceMonths=[...new Set(data.map(x=>String(x.invoice_month||x.month||'').trim()).filter(Boolean))].sort().reverse();const fallbackMonth=data.length?String(data[0].created_at||'').slice(0,7):'';const monthKey=invoiceMonths[0]||fallbackMonth;const monthLabel=monthKey?new Date(`${monthKey}-01T00:00:00`).toLocaleString('en-IN',{month:'short',year:'2-digit'}):'—';const cards=[['Month',monthLabel],['Total',data.length],['Submitted',data.filter(x=>x.current_status===WORKFLOW_STATUS.SUBMITTED).length],['Pending',data.filter(x=>[WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.PO_MAPPED].includes(x.current_status)).length],['Approved',data.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT).length],['Paid',data.filter(x=>x.current_status===WORKFLOW_STATUS.PAID).length]];return <div><section className=\"cards\">{cards.map(([a,b])=><div className=\"card\" key={a}><div>{a}</div><strong>{b}</strong></div>)}</section></div>}"""
           s,n=re.subn(r'function Dashboard\(\{data,role,nav\}\)\{.*?\n\nfunction StatusTable',new_dashboard+'\n\nfunction StatusTable',s,count=1,flags=re.S)
           if n!=1: raise SystemExit('Dashboard function replacement failed')
+
+          # History Record: add an invoice-month-only filter to the existing toolbar.
+          # The filter is scoped to History Record and never changes other tabs.
+          old_state="const[session,setSession]=useState(()=>getStoredSession()),[active,setActive]=useState('Dashboard'),[data,setData]=useState([]),[requests,setRequests]=useState([]),[history,setHistory]=useState([]),[selectedRequest,setSelectedRequest]=useState(null),[search,setSearch]=useState(''),[status,setStatus]=useState('All'),[company,setCompany]=useState('All'),[busy,setBusy]=useState(false),[notice,setNotice]=useState(''),[error,setError]=useState(''),[refresh,setRefresh]=useState(0)"
+          new_state=old_state.replace(",[company,setCompany]=useState('All')",",[company,setCompany]=useState('All'),[historyMonth,setHistoryMonth]=useState('All')")
+          if old_state not in s: raise SystemExit('App state anchor not found')
+          s=s.replace(old_state,new_state,1)
+
+          old_filter="const baseVisible=scopedData.filter(x=>`${x.inv_no||''} ${x.vendor||''} ${x.project_location||''} ${x.warehouse||''}`.toLowerCase().includes(search.toLowerCase())&&(company==='All'||x.company===company)&&(status==='All'||x.current_status===status))"
+          new_filter=old_filter+"\n const historyMonths=useMemo(()=>{const now=new Date();const end=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;const startRows=scopedData.map(x=>String(x.invoice_month||'').trim()).filter(m=>/^\\d{4}-\\d{2}$/.test(m)&&m<=end);const current=[];for(let d=new Date(`${end}-01T00:00:00`);d>=new Date('2020-01-01T00:00:00');d.setMonth(d.getMonth()-1)){const m=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;current.push(m);if(m<=Math.min(...(startRows.length?startRows.map(Number):[Number(end.replace('-',''))])))break}return [...new Set([...startRows,...current])].filter(m=>m<=end).sort().reverse()},[scopedData])\n const historyMonthLabel=m=>{if(m==='All')return 'All';const [y,mo]=m.split('-');return new Date(`${m}-01T00:00:00`).toLocaleString('en-IN',{month:'short',year:'2-digit'})}\n const historyVisible=historyMonth==='All'?baseVisible:baseVisible.filter(x=>String(x.invoice_month||'').trim()===historyMonth)"
+          if old_filter not in s: raise SystemExit('baseVisible anchor not found')
+          s=s.replace(old_filter,new_filter,1)
+
+          old_toolbar="<div className=\"toolbar\">{active!=='Dashboard'&&<><input placeholder=\"Search invoice / vendor / project / WH\" value={search} onChange={e=>setSearch(e.target.value)}/><select value={company} onChange={e=>setCompany(e.target.value)}><option>All</option><option>VIL</option><option>VWPL</option></select><select value={status} onChange={e=>setStatus(e.target.value)}><option>All</option>{Object.values(WORKFLOW_STATUS).map(s=><option key={s}>{s}</option>)}</select></>}</div>"
+          new_toolbar="<div className=\"toolbar\">{active!=='Dashboard'&&<><input placeholder=\"Search invoice / vendor / project / WH\" value={search} onChange={e=>setSearch(e.target.value)}/><select value={company} onChange={e=>setCompany(e.target.value)}><option>All</option><option>VIL</option><option>VWPL</option></select><select value={status} onChange={e=>setStatus(e.target.value)}><option>All</option>{Object.values(WORKFLOW_STATUS).map(s=><option key={s}>{s}</option>)}</select>{active==='History Record'&&<select value={historyMonth} onChange={e=>setHistoryMonth(e.target.value)} aria-label=\"Month (Inv month only)\"><option value=\"All\">Month (Inv month only) — All</option>{historyMonths.map(m=><option key={m} value={m}>{historyMonthLabel(m)}</option>)}</select>}</>}</div>"
+          if old_toolbar not in s: raise SystemExit('toolbar anchor not found')
+          s=s.replace(old_toolbar,new_toolbar,1)
+
+          old_tab="if(active==='Dashboard'||active==='History Record'||active==='History / Records'||active==='Reports'||active==='All Invoices'||active==='Users & Roles'||active==='Master Data'||active==='Workflow Configuration'||active==='Audit / History'||active==='Impersonation') return baseVisible"
+          new_tab="if(active==='Dashboard'||active==='Reports'||active==='All Invoices'||active==='Users & Roles'||active==='Master Data'||active==='Workflow Configuration'||active==='Audit / History'||active==='Impersonation') return baseVisible\n   if(active==='History Record'||active==='History / Records') return historyVisible"
+          if old_tab not in s: raise SystemExit('tabData anchor not found')
+          s=s.replace(old_tab,new_tab,1)
           p.write_text(s)
+
           css=Path('app/frontend/src/App.css')
           c=css.read_text()
           c=c.replace('.cards{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:12px;margin:18px 0}', '.cards{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin:18px 0}')
@@ -48,7 +74,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if ! git diff --quiet; then
             git add app/frontend/src/App.jsx app/frontend/src/App.css
-            git commit -m "P2: dashboard month uses invoice month and six cards"
+            git commit -m "P2: History Record invoice month filter"
             git push origin HEAD:development
           fi
 
