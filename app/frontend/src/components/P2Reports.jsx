@@ -12,7 +12,9 @@ function complianceHistory(history,id){
   const accepts=compliance.filter(x=>x.from_stage==='GAC_COMPLIANCE'&&x.action==='Accept')
   const outcomes=compliance.filter(x=>x.from_stage==='GAC_COMPLIANCE'&&['Compliance Check OK','Compliance Check Rejected','Query','Return','Reject'].includes(x.action))
   const queries=compliance.filter(x=>x.from_stage==='GAC_COMPLIANCE'&&x.action==='Query')
-  const navision=compliance.filter(x=>x.from_stage==='GAC_COMPLIANCE'&&x.to_stage==='GAC_PO'&&x.action==='Submit')
+  // The actual workflow records the hand-off with action "Compliance Check OK",
+  // not a generic "Submit" action. This is the authoritative GAC Compliance -> GAC PO date.
+  const navision=compliance.filter(x=>x.from_stage==='GAC_COMPLIANCE'&&x.to_stage==='GAC_PO'&&x.action==='Compliance Check OK')
   const lastQuery=queries.at(-1)
   let queryResolved=''
   if(lastQuery){
