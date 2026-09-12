@@ -1,0 +1,37 @@
+name: P2 Warehouse Accept idempotency fix
+on:
+  push:
+    branches: [development]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: github.event.head_commit.message != 'Apply P2 Warehouse Accept idempotency fix'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: development
+          fetch-depth: 0
+      - name: Patch Accept action race
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('app/frontend/src/App.jsx')
+          s=p.read_text()
+          old="try{setBusy(true);await updateRows('invoice_records',`id=eq.${inv.id}`,{current_status:ns,current_stage:nstage,current_responsible_user:nstage==='VENDOR'?inv.vendor:nstage==='WH'?inv.warehouse:nstage==='GAC_COMPLIANCE'?'GAC-C01':null,latest_remarks:remarks,status_message:remarks,last_action_at:now,stage_started_at:nstage!==inv.current_stage?now:(inv.stage_started_at||inv.created_at),...(ns===WORKFLOW_STATUS.PAID?{paid_at:now}:{})},token);"
+          new="try{setBusy(true);const latestRows=await selectRows('invoice_records',`id=eq.${inv.id}`,token);const latest=latestRows[0];if(latest&&latest.current_stage===nstage&&latest.current_status===ns){setNotice(latest.latest_remarks||`${act} already recorded.`);refreshData();return}await updateRows('invoice_records',`id=eq.${inv.id}`,{current_status:ns,current_stage:nstage,current_responsible_user:nstage==='VENDOR'?inv.vendor:nstage==='WH'?inv.warehouse:nstage==='GAC_COMPLIANCE'?'GAC-C01':null,latest_remarks:remarks,status_message:remarks,last_action_at:now,stage_started_at:nstage!==inv.current_stage?now:(inv.stage_started_at||inv.created_at),...(ns===WORKFLOW_STATUS.PAID?{paid_at:now}:{})},token);"
+          if old not in s:
+              raise SystemExit('Expected doAction update block not found')
+          p.write_text(s.replace(old,new,1))
+      - name: Build and commit
+        working-directory: app/frontend
+        run: |
+          npm ci
+          npm run build
+          cd ../..
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/frontend/src/App.jsx
+          git commit -m 'Apply P2 Warehouse Accept idempotency fix'
+          git push origin development
