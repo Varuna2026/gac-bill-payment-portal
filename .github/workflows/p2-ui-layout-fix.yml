@@ -11,23 +11,31 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: development
-      - name: Apply universal sequential selection and Project label
+      - name: Apply universal cascading selection and clean instructional text
         shell: python
         run: |
           from pathlib import Path
-          p=Path('app/frontend/src/App.jsx')
-          s=p.read_text()
-          if '${{ github.event.head_commit.message }}' == 'Apply P2 Warehouse Upload Docs fix':
-              raise SystemExit(0)
+          import re
 
-          # Project is the business head. Keep no user-facing Project / Location wording anywhere in source.
-          for root in [Path('app/frontend/src')]:
-              for f in root.rglob('*'):
-                  if f.is_file() and f.suffix in {'.js','.jsx','.css','.md'}:
-                      text=f.read_text()
-                      new=text.replace('Project / Location','Project').replace('Project & Location','Project')
-                      if new != text:
-                          f.write_text(new)
+          src=Path('app/frontend/src')
+          for f in src.rglob('*'):
+              if f.is_file() and f.suffix in {'.js','.jsx','.css','.md'}:
+                  text=f.read_text()
+                  new=text.replace('Project / Location','Project').replace('Project & Location','Project')
+                  # Remove the temporary implementation/instruction messages from every screen.
+                  patterns=[
+                      r'<p className="notice">Complete the steps in order\. Selecting a value does not lock it\. The current field stays editable until the next field is confirmed with Select\. No value is pre-selected\.</p>',
+                      r'<p className="notice">Universal sequential selection:[\s\S]*?</p>',
+                  ]
+                  for pat in patterns:
+                      new=re.sub(pat,'',new)
+                  if new != text:
+                      f.write_text(new)
+
+          p=src/'App.jsx'
+          s=p.read_text()
+          if '${{ github.event.head_commit.message }}' in {'Apply P2 universal sequential selection fix','Apply P2 Warehouse Upload Docs fix'}:
+              raise SystemExit(0)
 
           start=s.find('function WHUpload(')
           end=s.find('function VendorPending(',start)
@@ -36,7 +44,6 @@ jobs:
 
           wh=r'''function WHUpload({profile,mapping,token,onDone}){
             const[step,setStep]=useState(0),[org,setOrg]=useState(''),[wh,setWh]=useState(''),[project,setProject]=useState(''),[vendor,setVendor]=useState(''),[contract,setContract]=useState(''),[service,setService]=useState(''),[sub,setSub]=useState(''),[remarks,setRemarks]=useState(''),[files,setFiles]=useState([]),[msg,setMsg]=useState(''),[busy,setBusy]=useState(false);
-            // Normalize the master so Company/Organization and Project/Project Location aliases never break cascading selection.
             const rows=(mapping||[]).map(x=>({...x,company:x.company||x.organization||'',organization:x.organization||x.company||'',project:x.project||x.project_location||'',project_location:x.project||x.project_location||''}));
             const orgs=[...new Set(rows.map(x=>x.company).filter(Boolean))];
             const whs=[...new Set(rows.filter(x=>x.company===org).map(x=>x.warehouse).filter(Boolean))];
@@ -46,15 +53,13 @@ jobs:
             const subs=P2_SUB_SERVICES[service]||[];
             const contracts=service==='HK'||service==='Security'?['Minimum Wages']:service==='Manpower'?['Commercial','Minimum Wages']:service?['Commercial','Minimum Wages']:[];
 
-            // UNIVERSAL RULE: selecting a value never advances or locks it. The current value stays editable.
-            // The current step advances only when its adjacent Select button is clicked. Previous steps then lock.
-            const choose=(label,value,options,active,next,setter,clear)=><div className="p2-choice">
-              <select value={value} disabled={step!==active} onChange={e=>{setter(e.target.value);clear();setMsg('')}}>
-                <option value="">Select {label}</option>
-                {options.map(v=><option key={v} value={v}>{v}</option>)}
-              </select>
-              <button type="button" className="primary p2-next" disabled={step!==active||!value||busy} onClick={()=>{setMsg('');setStep(next)}}>Select</button>
-            </div>;
+            // A selected field stays editable until the user selects the NEXT field.
+            // Selecting the current value activates the next field immediately; once the next
+            // field receives a value, the previous field becomes locked. No defaults are used.
+            const choose=(label,value,options,active,next,setter,clear)=><select value={value} disabled={step<active||step>active+1} onChange={e=>{const v=e.target.value;setter(v);if(v){clear();setStep(next)}else{setStep(active)}}}>
+              <option value="">Select {label}</option>
+              {options.map(v=><option key={v} value={v}>{v}</option>)}
+            </select>;
 
             const submit=async()=>{if(!org||!wh||!project||!vendor||!contract||!service||!sub||!files.length||!remarks.trim()){setMsg('Complete every selection, upload at least one document, and enter Remarks before Submit.');return}try{setBusy(true);const now=new Date().toISOString();const req=(await insertRows('bill_requests',[{organization:org,company:org,warehouse:wh,project_location:project,project,vendor,contract_type:contract,service_type:service,sub_service:sub,remarks,status:'PENDING_VENDOR',created_at:now,created_by:profile.id}],token))[0];for(const file of files){const stored=await uploadStorage(`requests/${req.id}/${file.name}`,file);await insertRows('document_records',[{request_id:req.id,document_type:'WH Operational Document',document_name:file.name,storage_path:stored.path,source:'browser document storage',uploaded_by:profile.id}],token)}setMsg('Submitted to Vendor.');setFiles([]);setStep(0);setOrg('');setWh('');setProject('');setVendor('');setContract('');setService('');setSub('');setRemarks('');onDone()}catch(e){setMsg(e.message)}finally{setBusy(false)}};
             const cells=[
@@ -67,7 +72,7 @@ jobs:
               ['Service Type',choose('Service Type',service,services,6,7,setService,()=>setSub(''))],
               ['Sub-category',choose('Sub-category',sub,subs,7,8,setSub,()=>{})]
             ];
-            return <section className="panel form-panel"><h2>Warehouse — Upload Docs</h2><p className="notice">Universal sequential selection: select a value, correct it if needed, then press Select to confirm and activate the next head. Nothing is pre-selected. The process continues through Sub-category, Remarks and Submit.</p><div className="p2-compact-grid">{cells.map(([label,control])=><div className="p2-grid-cell" key={label}><strong>{label}</strong>{control}</div>)}</div><div className="p2-bottom-grid"><label>Remarks<textarea value={remarks} onChange={e=>setRemarks(e.target.value)} disabled={step<8} placeholder={step<8?'Available after all selections':'Enter remarks'}/></label><div><strong>Selected Documents</strong><div>{files.length?files.map(f=><div key={f.name}>{f.name}</div>):'None selected'}</div></div></div><button className="primary" disabled={step<8||!files.length||!remarks.trim()||busy} onClick={submit}>{busy?'Submitting…':'Submit to Vendor'}</button>{msg&&<div className="notice">{msg}</div>}<style>{`.p2-compact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}.p2-grid-cell{min-width:0}.p2-grid-cell strong{display:block;margin-bottom:5px}.p2-choice{display:flex;gap:5px;align-items:center}.p2-choice select{min-width:0;flex:1;width:100%}.p2-next{white-space:nowrap;padding:7px 10px}.p2-bottom-grid{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-top:10px}.p2-bottom-grid textarea{width:100%;min-height:70px;box-sizing:border-box}@media(max-width:900px){.p2-compact-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.p2-compact-grid,.p2-bottom-grid{grid-template-columns:1fr}}`}</style></section>
+            return <section className="panel form-panel"><h2>Warehouse — Upload Docs</h2><div className="p2-compact-grid">{cells.map(([label,control])=><div className="p2-grid-cell" key={label}><strong>{label}</strong>{control}</div>)}</div><div className="p2-bottom-grid"><label>Remarks<textarea value={remarks} onChange={e=>setRemarks(e.target.value)} disabled={step<8} placeholder={step<8?'Available after all selections':'Enter remarks'}/></label><div><strong>Selected Documents</strong><div>{files.length?files.map(f=><div key={f.name}>{f.name}</div>):'None selected'}</div></div></div><button className="primary" disabled={step<8||!files.length||!remarks.trim()||busy} onClick={submit}>{busy?'Submitting…':'Submit to Vendor'}</button>{msg&&<div className="notice">{msg}</div>}<style>{`.p2-compact-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}.p2-grid-cell{min-width:0}.p2-grid-cell strong{display:block;margin-bottom:5px}.p2-grid-cell select{width:100%;box-sizing:border-box}.p2-bottom-grid{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-top:10px}.p2-bottom-grid textarea{width:100%;min-height:70px;box-sizing:border-box}@media(max-width:900px){.p2-compact-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.p2-compact-grid,.p2-bottom-grid{grid-template-columns:1fr}}`}</style></section>
           }
 
           '''
@@ -80,9 +85,9 @@ jobs:
           cd ../..
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add app/frontend/src/App.jsx app/frontend/src/App.css app/frontend/src/components
+          git add app/frontend/src
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Apply P2 universal sequential selection fix'
+          git commit -m 'Apply P2 cascading selection and clean UI messages'
           git fetch origin development
           git rebase origin/development
           git push origin HEAD:development
