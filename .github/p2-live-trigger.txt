@@ -1,1 +1,1 @@
-P2 live deployment trigger. Accounts payment-stage correction requested 2026-09-12.
+P2 Accounts payment-stage correction deployment trigger — final.
