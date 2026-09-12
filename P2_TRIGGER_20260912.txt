@@ -1,0 +1,1 @@
+P2 sequential selection fix trigger 2026-09-12
