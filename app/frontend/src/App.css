@@ -19,3 +19,7 @@
 /* P2 Dashboard: six scorecards remain in one horizontal line, starting with Month. */
 .cards{grid-template-columns:repeat(6,minmax(0,1fr));}
 .card{min-width:0;}
+
+/* P2 Dashboard: six scorecards remain in one horizontal line, starting with Month. */
+.cards{grid-template-columns:repeat(6,minmax(0,1fr));}
+.card{min-width:0;}
