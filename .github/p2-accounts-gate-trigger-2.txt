@@ -1,0 +1,1 @@
+Trigger after persistent Accounts gate workflow was installed.
