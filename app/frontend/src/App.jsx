@@ -82,7 +82,7 @@ function WHUpload({profile,mapping,token,onDone}){
   const vendors=[...new Set(rows.filter(x=>x.company===org&&x.warehouse===wh&&x.project===project).map(x=>x.vendor).filter(Boolean))];
   const services=[...new Set(rows.filter(x=>x.company===org&&x.warehouse===wh&&x.project===project&&x.vendor===vendor).map(x=>x.service_type).filter(Boolean))];
   const subs=P2_SUB_SERVICES[service]||[];
-  const contracts=service==='HK'||service==='Security'?['Minimum Wages']:service==='Manpower'?['Commercial','Minimum Wages']:service?['Commercial','Minimum Wages']:[];
+  const contracts=['Commercial','Minimum Wages'];
 
   // A selected field stays editable until the user selects the NEXT field.
   // Selecting the current value activates the next field immediately; once the next
