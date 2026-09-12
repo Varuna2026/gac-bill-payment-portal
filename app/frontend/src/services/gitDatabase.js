@@ -19,6 +19,7 @@ function assertInvoice(db,r){if(!r.inv_no)throw Error('Invoice Number is require
 function assertTransition(row,v){const role=sessionProfile()?.role;if(!role||role==='ADMIN')return;const stage=row.current_stage,status=row.current_status,ns=v.current_stage,nst=v.current_status;const remarks=String(v.latest_remarks??'').trim();const fail=m=>{throw Error(`Workflow gate failed: ${m}`)};if(stage!==({WH:'WH',GAC_COMPLIANCE:'GAC_COMPLIANCE',GAC_PO:'GAC_PO',ACCOUNTS:'ACCOUNTS',CBO_OFFICE:'CBO_OFFICE',CBO_OFFICER:'CBO_OFFICER',VENDOR:'VENDOR'}[role]||stage))fail(`only ${role} may action this stage`)
  if(nst==='REJECTED'&& !remarks)fail('Remarks are mandatory when an invoice is rejected')
  if(role==='VENDOR'&&status==='RETURNED'&&ns==='WH'&&nst==='SUBMITTED')return
+ if(role==='WH'&&status==='SUBMITTED'&&ns==='WH'&&nst==='ACCEPTED')return
  if(role==='WH'&&status==='SUBMITTED'&&ns==='GAC_COMPLIANCE'&&nst==='PR_MAPPED')return
  if(role==='WH'&&status==='RETURNED'&&ns==='GAC_COMPLIANCE'&&nst==='PR_MAPPED')return
  if(role==='GAC_COMPLIANCE'&&['SUBMITTED','PR_MAPPED'].includes(status)&&ns==='GAC_COMPLIANCE'&&nst==='ACCEPTED')return
