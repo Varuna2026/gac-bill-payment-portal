@@ -24,24 +24,30 @@ jobs:
           ref: development
           fetch-depth: 0
 
-      - name: Verify and repair Accounts payment-stage workflow
+      - name: Verify and repair P2 dashboard and Accounts workflow
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p=Path('app/frontend/src/App.jsx')
           s=p.read_text()
-          # Repair the one syntax defect introduced while replacing the old payment prompt.
+          old="function Dashboard({data,role,nav}){const now=new Date();const monthKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;const monthCount=data.filter(x=>String(x.created_at||'').slice(0,7)===monthKey).length;const monthLabel=now.toLocaleString('en-IN',{month:'long'});const cards=[['Total',data.length],['Submitted',data.filter(x=>x.current_status===WORKFLOW_STATUS.SUBMITTED).length],['Pending',data.filter(x=>[WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.PO_MAPPED].includes(x.current_status)).length],['Approved',data.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT).length],['Paid',data.filter(x=>x.current_status===WORKFLOW_STATUS.PAID).length],['Month',monthCount]];return <div><section className=\"cards\">{cards.map(([a,b])=><div className=\"card\" key={a}><div>{a==='Month'?monthLabel:a}</div><strong>{b}</strong></div>)}</section></div>}"
+          new="function Dashboard({data,role,nav}){const now=new Date();const monthKey=previousInvoiceMonth();const monthCount=data.filter(x=>String(x.created_at||'').slice(0,7)===monthKey).length;const monthLabel=now.toLocaleString('en-IN',{month:'long'});const previousLabel=new Date(`${monthKey}-01T00:00:00`).toLocaleString('en-IN',{month:'short',year:'2-digit'});const cards=[['Total',data.length],['Submitted',data.filter(x=>x.current_status===WORKFLOW_STATUS.SUBMITTED).length],['Pending',data.filter(x=>[WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.PO_MAPPED].includes(x.current_status)).length],['Approved',data.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT).length],['Paid',data.filter(x=>x.current_status===WORKFLOW_STATUS.PAID).length],['Month',monthCount]];return <div><section className=\"cards\">{cards.map(([a,b])=><div className=\"card\" key={a}><div>{a==='Month'?monthLabel:a}</div><strong>{b}</strong>{a==='Month'&&<small>{previousLabel}</small>}</div>)}</section></div>}"
+          if old in s:
+            s=s.replace(old,new,1)
+            print('Updated Dashboard Month score to previous invoice month.')
+          else:
+            print('Dashboard month implementation already current or not matched.')
           bad="window.prompt(`Remarks for ${act} (optional):`,'')||''\n   try"
           good="window.prompt(`Remarks for ${act} (optional):`,'')||'')\n   try"
           if bad in s:
             s=s.replace(bad,good,1)
-            p.write_text(s)
             print('Repaired Accounts payment-stage remarks expression.')
           required=["current_status===WORKFLOW_STATUS.ACCEPTED","TDS Amount","Deduction Amount","Total Amount","UTR No","Payment details entered"]
           for x in required:
             if x not in s: raise SystemExit(f'Missing Accounts payment-stage implementation: {x}')
           if "window.prompt('TDS Amount" in s or "P2_ACCOUNTS_APPROVED_FOR_PAYMENT_HANDLER_GUARD" in s:
             raise SystemExit('Old Accounts popup/gate implementation is still present')
+          p.write_text(s)
           PY
 
       - name: Commit repaired source
@@ -50,7 +56,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if ! git diff --quiet; then
             git add app/frontend/src/App.jsx
-            git commit -m "Fix Accounts payment-stage syntax"
+            git commit -m "P2: show previous invoice month on dashboard"
             git push origin HEAD:development
           fi
 
@@ -80,6 +86,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy Accounts payment-stage build to GitHub Pages
+      - name: Deploy P2 build to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
