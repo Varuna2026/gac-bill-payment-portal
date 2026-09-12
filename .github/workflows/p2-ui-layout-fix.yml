@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -22,11 +22,51 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: development
+          fetch-depth: 0
+
+      - name: Enforce Accounts approved-for-payment UI gate
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('app/frontend/src/App.jsx')
+          s = p.read_text()
+          marker = 'P2_ACCOUNTS_APPROVED_FOR_PAYMENT_UI_GUARD'
+          changed = False
+          if marker not in s:
+              guard = "/* P2_ACCOUNTS_APPROVED_FOR_PAYMENT_UI_GUARD */\n   if(isPending&&role===ROLES.ACCOUNTS&&x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT&&x.current_stage===roleStage[role])return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><button className='link-btn' onClick={()=>openDocuments(x)}>View</button><button className='primary' onClick={()=>onAction(x,'Paid')}>Paid</button></div>;\n   "
+              if 'if(isPending)return' not in s:
+                  raise SystemExit('Accounts UI guard anchor not found; no source change made.')
+              s = s.replace('if(isPending)return', guard + 'if(isPending)return', 1)
+              changed = True
+          # Keep the action handler defensive even if an old UI bundle sends Accept.
+          if 'P2_ACCOUNTS_APPROVED_FOR_PAYMENT_HANDLER_GUARD' not in s:
+              handler_guard = "/* P2_ACCOUNTS_APPROVED_FOR_PAYMENT_HANDLER_GUARD */\n   if(role===ROLES.ACCOUNTS&&act==='Accept'&&inv.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT&&inv.current_stage===roleStage[role]){setError('Accounts: Approved for Payment can only be marked Paid. Accept is not permitted.');return}\n   "
+              anchor = "const doAction=async(inv,act,routeChoice)=>{const now=new Date().toISOString();let ns=inv.current_status,nstage=inv.current_stage,extra={}\n"
+              if anchor not in s:
+                  raise SystemExit('Accounts handler guard anchor not found; no source change made.')
+              s = s.replace(anchor, anchor + handler_guard, 1)
+              changed = True
+          if changed:
+              p.write_text(s)
+          PY
+
+      - name: Commit source correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "Accounts gate source already corrected."
+          else
+            git add app/frontend/src/App.jsx
+            git commit -m "Fix Accounts approved-for-payment action gate"
+            git push origin HEAD:development
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: app/frontend/package-lock.json
 
@@ -42,7 +82,7 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: app/frontend/dist
 
