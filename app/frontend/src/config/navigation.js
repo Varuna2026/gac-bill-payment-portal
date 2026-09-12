@@ -10,6 +10,6 @@ export const NAVIGATION_BY_ROLE = {
   [ROLES.GAC_PO]: ['Dashboard', 'Pending for Action', 'Received & Under Process', 'Submitted', 'Query / Returned / Rejected', 'History Record', 'Reports'],
   [ROLES.ACCOUNTS]: ['Dashboard', 'Pending for Action', 'Received & Under Process', 'Submitted', 'Paid', 'Query / Returned / Rejected', 'History Record', 'Reports'],
   [ROLES.CBO_OFFICE]: ['Dashboard', 'Pending for Action', 'Received & Under Process', 'Submitted', 'Query / Returned / Rejected', 'History Record', 'Reports'],
-  [ROLES.CBO_OFFICER]: ['Dashboard', 'Pending for Action', 'Received & Under Process', 'Submitted', 'Approved', 'Query / Returned / Rejected', 'History Record', 'Reports'],
+  [ROLES.CBO_OFFICER]: ['Dashboard', 'Pending for Action', 'Received & Under Process', 'Approved', 'Query / Returned / Rejected', 'History Record', 'Reports'],
   [ROLES.ADMIN]: ['Dashboard', 'All Invoices', 'Users & Roles', 'Master Data', 'Workflow Configuration', 'Reports', 'Audit / History', 'Impersonation'],
 }
