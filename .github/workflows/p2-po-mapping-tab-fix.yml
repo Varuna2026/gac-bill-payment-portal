@@ -1,6 +1,8 @@
 name: P2 GAC PO mapped tab fix
 
 on:
+  push:
+    branches: [development]
   workflow_dispatch:
 
 permissions:
@@ -8,6 +10,7 @@ permissions:
 
 jobs:
   fix-po-mapped-tab:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'Fix PO mapped invoice stays in GAC PO process tab')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout development
