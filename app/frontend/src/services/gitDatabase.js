@@ -25,13 +25,16 @@ const stageFor={VENDOR:'VENDOR',WH:'WH',GAC_COMPLIANCE:'GAC_COMPLIANCE',GAC_PO:'
 if(stage!==stageFor[role])fail(`only ${role} may action this stage`)
 if(nst==='REJECTED'&&!remarks)fail('Remarks are mandatory when an invoice is rejected')
 const ok=(s,st,d,ds)=>stage===s&&status===st&&ns===d&&nst===ds
+// Vendor -> Warehouse
 if(ok('VENDOR','RETURNED','WH','SUBMITTED'))return
 if(ok('VENDOR','SUBMITTED','WH','SUBMITTED'))return
+// Warehouse -> GAC Compliance
 if(ok('WH','SUBMITTED','WH','ACCEPTED'))return
 if(ok('WH','ACCEPTED','WH','ACCEPTED'))return
 if(ok('WH','ACCEPTED','GAC_COMPLIANCE','PR_MAPPED'))return
 if(ok('WH','SUBMITTED','GAC_COMPLIANCE','PR_MAPPED'))return
 if(ok('WH','RETURNED','GAC_COMPLIANCE','PR_MAPPED'))return
+// GAC Compliance -> GAC PO
 if(ok('GAC_COMPLIANCE','PR_MAPPED','GAC_COMPLIANCE','ACCEPTED'))return
 if(ok('GAC_COMPLIANCE','SUBMITTED','GAC_COMPLIANCE','ACCEPTED'))return
 if(ok('GAC_COMPLIANCE','ACCEPTED','GAC_COMPLIANCE','ACCEPTED'))return
@@ -41,23 +44,33 @@ if(ok('GAC_COMPLIANCE','ACCEPTED','GAC_PO','SUBMITTED'))return
 if(ok('GAC_COMPLIANCE','UNDER_COMPLIANCE_CHECK','GAC_PO','SUBMITTED'))return
 if(ok('GAC_COMPLIANCE','ACCEPTED','GAC_PO','COMPLIANCE_CHECKED'))return
 if(ok('GAC_COMPLIANCE','UNDER_COMPLIANCE_CHECK','GAC_PO','COMPLIANCE_CHECKED'))return
+// GAC PO -> CBO Office
 if(ok('GAC_PO','SUBMITTED','GAC_PO','ACCEPTED'))return
 if(ok('GAC_PO','COMPLIANCE_CHECKED','GAC_PO','ACCEPTED'))return
 if(ok('GAC_PO','ACCEPTED','GAC_PO','ACCEPTED'))return
 if(ok('GAC_PO','ACCEPTED','GAC_PO','PO_MAPPED'))return
-if(ok('GAC_PO','PO_MAPPED','GAC_OFFICE','SUBMITTED'))return
 if(ok('GAC_PO','PO_MAPPED','CBO_OFFICE','SUBMITTED'))return
+// CBO Office -> CBO Officer
+if(ok('CBO_OFFICE','SUBMITTED','CBO_OFFICE','ACCEPTED'))return
+if(ok('CBO_OFFICE','ACCEPTED','CBO_OFFICE','ACCEPTED'))return
+if(ok('CBO_OFFICE','ACCEPTED','CBO_OFFICER','SUBMITTED'))return
+if(ok('CBO_OFFICE','SUBMITTED','CBO_OFFICER','SUBMITTED'))return
+// CBO Officer: support the current UI's legacy Accept state, then Approve.
+if(ok('CBO_OFFICER','SUBMITTED','CBO_OFFICER','ACCEPTED'))return
+if(ok('CBO_OFFICER','ACCEPTED','CBO_OFFICER','ACCEPTED'))return
+if(ok('CBO_OFFICER','SUBMITTED','CBO_OFFICER','APPROVED_FOR_PAYMENT'))return
+if(ok('CBO_OFFICER','ACCEPTED','CBO_OFFICER','APPROVED_FOR_PAYMENT'))return
+if(ok('CBO_OFFICER','SUBMITTED','ACCOUNTS','APPROVED_FOR_PAYMENT'))return
+if(ok('CBO_OFFICER','ACCEPTED','ACCOUNTS','APPROVED_FOR_PAYMENT'))return
+// Accounts -> PAID
+if(ok('ACCOUNTS','APPROVED_FOR_PAYMENT','ACCOUNTS','PAID'))return
+// Legacy/alternate PO-to-Accounts paths retained only for existing test records.
+if(ok('GAC_PO','PO_MAPPED','GAC_OFFICE','SUBMITTED'))return
 if(ok('GAC_PO','PO_MAPPED','ACCOUNTS','PO_MAPPED'))return
 if(ok('ACCOUNTS','PO_MAPPED','ACCOUNTS','ACCEPTED'))return
 if(ok('ACCOUNTS','PO_MAPPED','CBO_OFFICE','SUBMITTED'))return
 if(ok('ACCOUNTS','ACCEPTED','ACCOUNTS','ACCEPTED'))return
 if(ok('ACCOUNTS','ACCEPTED','CBO_OFFICER','SUBMITTED'))return
-if(ok('CBO_OFFICE','SUBMITTED','CBO_OFFICE','ACCEPTED'))return
-if(ok('CBO_OFFICE','ACCEPTED','CBO_OFFICE','ACCEPTED'))return
-if(ok('CBO_OFFICE','SUBMITTED','CBO_OFFICER','SUBMITTED'))return
-if(ok('CBO_OFFICER','SUBMITTED','CBO_OFFICER','APPROVED_FOR_PAYMENT'))return
-if(ok('CBO_OFFICER','SUBMITTED','ACCOUNTS','APPROVED_FOR_PAYMENT'))return
-if(ok('ACCOUNTS','APPROVED_FOR_PAYMENT','ACCOUNTS','PAID'))return
 if(['QUERY','RETURNED','REJECTED'].includes(nst)){
   const d={WH:['VENDOR'],GAC_COMPLIANCE:['VENDOR','WH'],GAC_PO:['VENDOR','WH'],ACCOUNTS:['GAC_PO'],CBO_OFFICE:['ACCOUNTS','GAC_PO','WH','VENDOR'],CBO_OFFICER:['CBO_OFFICE','ACCOUNTS','GAC_PO','WH','VENDOR']}[role]||[]
   if(!d.includes(ns))fail(`invalid destination ${ns}`)
