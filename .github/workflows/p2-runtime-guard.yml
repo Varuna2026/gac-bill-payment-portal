@@ -1,0 +1,49 @@
+name: P2 runtime guard wiring
+on:
+  push:
+    branches: [development]
+  workflow_dispatch:
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+jobs:
+  patch:
+    if: github.event.head_commit.message != 'P2: apply runtime guard wiring'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: development
+      - name: Wire restored Warehouse Upload Docs and error boundary
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/frontend/src/App.jsx')
+          s=p.read_text()
+          if "import WHUpload from './components/WHUpload'" not in s:
+              s=s.replace("import P2Admin from './components/P2Admin'", "import P2Admin from './components/P2Admin'\nimport WHUpload from './components/WHUpload'\nimport P2ErrorBoundary from './components/P2ErrorBoundary'", 1)
+          old="if(active==='Upload Docs'&&role===ROLES.WH)return <UploadDocs profile={profile} mapping={mapping} requests={requests} onSubmit={raiseInvoice} onRefresh={refreshData}/>;"
+          new="if(active==='Upload Docs'&&role===ROLES.WH)return <WHUpload profile={profile} mapping={mapping} token={token} onDone={refreshData}/>;"
+          if old not in s:
+              raise SystemExit('Warehouse Upload Docs render anchor not found')
+          s=s.replace(old,new,1)
+          old2="{content()}</main>"
+          new2="<P2ErrorBoundary>{content()}</P2ErrorBoundary></main>"
+          if old2 not in s:
+              raise SystemExit('content render anchor not found')
+          s=s.replace(old2,new2,1)
+          p.write_text(s)
+          PY
+      - name: Build
+        working-directory: app/frontend
+        run: |
+          npm ci
+          npm run build
+      - name: Commit source wiring
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/frontend/src/App.jsx
+          git commit -m 'P2: apply runtime guard wiring'
+          git push origin HEAD:development
