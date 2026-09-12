@@ -1,0 +1,53 @@
+name: P2 WH to GAC handoff fix
+
+on:
+  push:
+    branches: [development]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.head_commit.message != 'Apply P2 WH to GAC handoff fix'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: development
+          fetch-depth: 0
+      - name: Patch workflow handoff
+        shell: python
+        run: |
+          from pathlib import Path
+          p=Path('app/frontend/src/App.jsx')
+          s=p.read_text()
+
+          old="""}else if(act==='Submit to GAC Compliance'){if(role!==ROLES.WH)return;const prRows=await selectRows('pr_po_utr',`&invoice_id=eq.${inv.id}`,token);if(!prRows.length||!prRows[0].pr_number){setError('Map PR Number before submitting to GAC Compliance.');return}ns=WORKFLOW_STATUS.PR_MAPPED;nstage='GAC_COMPLIANCE'}"""
+          new="""}else if(act==='Submit to GAC Compliance'){if(role!==ROLES.WH)return;const latestInvoiceRows=await selectRows('invoice_records',`id=eq.${inv.id}`,token);const latestInvoice=latestInvoiceRows[0];const prRows=await selectRows('pr_po_utr',`&invoice_id=eq.${inv.id}`,token);const pr=(latestInvoice?.pr_number||prRows[0]?.pr_number||'').trim();if(!pr){setError('Map PR Number before submitting to GAC Compliance.');return}ns=WORKFLOW_STATUS.PR_MAPPED;nstage='GAC_COMPLIANCE'}"""
+          if old not in s: raise SystemExit('Submit-to-GAC block not found')
+          s=s.replace(old,new,1)
+
+          old="""{current_status:ns,current_stage:nstage,current_responsible_user:nstage==='VENDOR'?inv.vendor:nstage==='WH'?inv.warehouse:nstage==='GAC_COMPLIANCE'?'GAC-C01':null,latest_remarks:remarks,status_message:remarks,last_action_at:now,stage_started_at:nstage!==inv.current_stage?now:(inv.stage_started_at||inv.created_at),...(ns===WORKFLOW_STATUS.PAID?{paid_at:now}:{})}"""
+          new="""{current_status:ns,current_stage:nstage,current_responsible_user:nstage==='VENDOR'?inv.vendor:nstage==='WH'?inv.warehouse:nstage==='GAC_COMPLIANCE'?'GAC-C01':null,...(extra.pr_number?{pr_number:extra.pr_number}:{}),latest_remarks:remarks,status_message:remarks,last_action_at:now,stage_started_at:nstage!==inv.current_stage?now:(inv.stage_started_at||inv.created_at),...(ns===WORKFLOW_STATUS.PAID?{paid_at:now}:{})}"""
+          if old not in s: raise SystemExit('invoice update block not found')
+          s=s.replace(old,new,1)
+
+          old="""const mapPR=async x=>{const pr=(prDraft[x.id]||'').trim();if(!pr)return;await onAction(x,'Map PR',pr);setSavedPR(v=>({...v,[x.id]:pr}))};const submitToGAC=async x=>{if(!(savedPR[x.id]||x.pr_number))return;await onAction(x,'Submit to GAC Compliance')};"""
+          new="""const mapPR=async x=>{const pr=(prDraft[x.id]||'').trim();if(!pr)return;await onAction(x,'Map PR',pr);setSavedPR(v=>({...v,[x.id]:pr}));setPrDraft(v=>({...v,[x.id]:pr}))};const submitToGAC=async x=>{const pr=(savedPR[x.id]||prDraft[x.id]||x.pr_number||'').trim();if(!pr)return;await onAction({...x,pr_number:pr},'Submit to GAC Compliance')};"""
+          if old not in s: raise SystemExit('PR button handlers not found')
+          s=s.replace(old,new,1)
+
+          p.write_text(s)
+      - name: Build and commit
+        working-directory: app/frontend
+        run: |
+          npm ci
+          npm run build
+          cd ../..
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/frontend/src/App.jsx
+          git diff --cached --quiet && exit 0
+          git commit -m 'Apply P2 WH to GAC handoff fix'
+          git push origin development
