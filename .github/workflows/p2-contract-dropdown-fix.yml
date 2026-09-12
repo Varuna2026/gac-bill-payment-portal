@@ -30,6 +30,9 @@ jobs:
           # Vendor is a workflow stage too; without this the Vendor Submitted tab
           # has no roleStage key and therefore always renders empty.
           s=s.replace("const roleStage={WH:'WH'", "const roleStage={VENDOR:'VENDOR',WH:'WH'")
+          # Prevent a React crash when a Warehouse user ticks an invoice checkbox.
+          # The old handler referenced an undefined variable `id`.
+          s=s.replace("[...v,id]", "[...v,x.id]")
           # Keep the existing strict Upload Docs implementation from this workflow.
           start=s.index('function WHUpload(')
           end=s.index('function VendorPending(', start)
