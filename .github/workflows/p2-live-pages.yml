@@ -24,18 +24,35 @@ jobs:
           ref: development
           fetch-depth: 0
 
-      - name: Verify Accounts payment-stage workflow
+      - name: Verify and repair Accounts payment-stage workflow
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          s=Path('app/frontend/src/App.jsx').read_text()
+          p=Path('app/frontend/src/App.jsx')
+          s=p.read_text()
+          # Repair the one syntax defect introduced while replacing the old payment prompt.
+          bad="window.prompt(`Remarks for ${act} (optional):`,'')||''\n   try"
+          good="window.prompt(`Remarks for ${act} (optional):`,'')||'')\n   try"
+          if bad in s:
+            s=s.replace(bad,good,1)
+            p.write_text(s)
+            print('Repaired Accounts payment-stage remarks expression.')
           required=["current_status===WORKFLOW_STATUS.ACCEPTED","TDS Amount","Deduction Amount","Total Amount","UTR No","Payment details entered"]
           for x in required:
             if x not in s: raise SystemExit(f'Missing Accounts payment-stage implementation: {x}')
           if "window.prompt('TDS Amount" in s or "P2_ACCOUNTS_APPROVED_FOR_PAYMENT_HANDLER_GUARD" in s:
             raise SystemExit('Old Accounts popup/gate implementation is still present')
-          print('Accounts payment-stage source verification: PASS')
           PY
+
+      - name: Commit repaired source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet; then
+            git add app/frontend/src/App.jsx
+            git commit -m "Fix Accounts payment-stage syntax"
+            git push origin HEAD:development
+          fi
 
       - name: Setup Node
         uses: actions/setup-node@v4
