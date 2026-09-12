@@ -31,14 +31,14 @@ jobs:
           p=Path('app/frontend/src/App.jsx')
           s=p.read_text()
           import re
-          new_dashboard="""function Dashboard({data,role,nav}){const now=new Date();const currentKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;const monthOptions=[];for(let y=2020;y<=now.getFullYear();y++){const max=y===now.getFullYear()?now.getMonth()+1:12;for(let m=1;m<=max;m++)monthOptions.push(`${y}-${String(m).padStart(2,'0')}`)}const invoiceMonths=[...new Set(data.map(x=>String(x.invoice_month||x.month||'').trim()).filter(Boolean))];const defaultMonth=invoiceMonths.length?invoiceMonths.sort().reverse()[0]:currentKey;const [selectedMonth,setSelectedMonth]=useState(defaultMonth);useEffect(()=>{if(!monthOptions.includes(selectedMonth))setSelectedMonth(defaultMonth)},[defaultMonth]);const monthLabel=m=>m?new Date(`${m}-01T00:00:00`).toLocaleString('en-IN',{month:'short',year:'2-digit'}):'—';const monthData=data.filter(x=>String(x.invoice_month||x.month||String(x.created_at||'').slice(0,7)).slice(0,7)===selectedMonth);const cards=[['Month',monthLabel(selectedMonth)],['Total',monthData.length],['Submitted',monthData.filter(x=>x.current_status===WORKFLOW_STATUS.SUBMITTED).length],['Pending',monthData.filter(x=>[WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.PO_MAPPED].includes(x.current_status)).length],['Approved',monthData.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT).length],['Paid',monthData.filter(x=>x.current_status===WORKFLOW_STATUS.PAID).length]];return <div><div className=\"dashboard-month-selector\"><label>Invoice Month <select value={selectedMonth} onChange={e=>setSelectedMonth(e.target.value)}>{monthOptions.slice().reverse().map(m=><option key={m} value={m}>{monthLabel(m)}</option>)}</select></label></div><section className=\"cards\">{cards.map(([a,b])=><div className=\"card\" key={a}><div>{a}</div><strong>{b}</strong></div>)}</section></div>}"""
+          new_dashboard="""function Dashboard({data,role,nav}){const invoiceMonths=[...new Set(data.map(x=>String(x.invoice_month||x.month||'').trim()).filter(Boolean))].sort().reverse();const fallbackMonth=data.length?String(data[0].created_at||'').slice(0,7):'';const monthKey=invoiceMonths[0]||fallbackMonth;const monthLabel=monthKey?new Date(`${monthKey}-01T00:00:00`).toLocaleString('en-IN',{month:'short',year:'2-digit'}):'—';const cards=[['Month',monthLabel],['Total',data.length],['Submitted',data.filter(x=>x.current_status===WORKFLOW_STATUS.SUBMITTED).length],['Pending',data.filter(x=>[WORKFLOW_STATUS.PENDING,WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.PR_MAPPED,WORKFLOW_STATUS.PO_MAPPED].includes(x.current_status)).length],['Approved',data.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT).length],['Paid',data.filter(x=>x.current_status===WORKFLOW_STATUS.PAID).length]];return <div><section className=\"cards\">{cards.map(([a,b])=><div className=\"card\" key={a}><div>{a}</div><strong>{b}</strong></div>)}</section></div>}"""
           s,n=re.subn(r'function Dashboard\(\{data,role,nav\}\)\{.*?\n\nfunction StatusTable',new_dashboard+'\n\nfunction StatusTable',s,count=1,flags=re.S)
           if n!=1: raise SystemExit('Dashboard function replacement failed')
           p.write_text(s)
           css=Path('app/frontend/src/App.css')
           c=css.read_text()
           c=c.replace('.cards{display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:12px;margin:18px 0}', '.cards{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;margin:18px 0}')
-          c += '\n/* P2 Dashboard: six scorecards remain in one horizontal line, starting with Month. */\n.cards{grid-template-columns:repeat(6,minmax(0,1fr));}\n.card{min-width:0;}\n.dashboard-month-selector{display:flex;justify-content:flex-start;align-items:center;margin:18px 0 10px;}\n.dashboard-month-selector label{display:flex;align-items:center;gap:10px;font-weight:600;}\n.dashboard-month-selector select{min-width:140px;}\n'
+          c += '\n/* P2 Dashboard: six scorecards remain in one horizontal line, starting with Month. */\n.cards{grid-template-columns:repeat(6,minmax(0,1fr));}\n.card{min-width:0;}\n'
           css.write_text(c)
           PY
 
@@ -48,7 +48,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if ! git diff --quiet; then
             git add app/frontend/src/App.jsx app/frontend/src/App.css
-            git commit -m "P2: dashboard month selector drives scorecards"
+            git commit -m "P2: dashboard month uses invoice month and six cards"
             git push origin HEAD:development
           fi
 
