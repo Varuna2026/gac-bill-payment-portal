@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   fix:
-    if: github.event.head_commit.message != 'Fix P2 sequential Upload Docs implementation'
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'P2 workflow')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,13 +27,8 @@ jobs:
           import re
           p=Path('app/frontend/src/App.jsx')
           s=p.read_text()
-          # Vendor is a workflow stage too; without this the Vendor Submitted tab
-          # has no roleStage key and therefore always renders empty.
           s=s.replace("const roleStage={WH:'WH'", "const roleStage={VENDOR:'VENDOR',WH:'WH'")
-          # Prevent a React crash when a Warehouse user ticks an invoice checkbox.
-          # The old handler referenced an undefined variable `id`.
           s=s.replace("[...v,id]", "[...v,x.id]")
-          # Keep the existing strict Upload Docs implementation from this workflow.
           start=s.index('function WHUpload(')
           end=s.index('function VendorPending(', start)
           new=r'''function WHUpload({profile,mapping,token,onDone}){
@@ -58,13 +53,6 @@ jobs:
           s=re.sub(r'Universal sequential selection:[^<\n}]*','',s,flags=re.I)
           s=re.sub(r'Complete the steps in order\.[^<\n}]*','',s,flags=re.I)
           p.write_text(s)
-          root=Path('app/frontend/src')
-          for f in root.rglob('*'):
-            if f.is_file() and f.suffix in {'.js','.jsx','.css','.md'} and f!=p:
-              t=f.read_text();u=t.replace('Project / Location','Project').replace('Project & Location','Project')
-              u=re.sub(r'Universal sequential selection:[^<\n}]*','',u,flags=re.I)
-              u=re.sub(r'Complete the steps in order\.[^<\n}]*','',u,flags=re.I)
-              if u!=t:f.write_text(u)
       - name: Build and commit
         working-directory: app/frontend
         run: |
