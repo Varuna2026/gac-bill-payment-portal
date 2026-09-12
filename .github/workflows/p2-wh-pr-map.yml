@@ -1,0 +1,56 @@
+name: P2 WH PR Mapping Fix
+on:
+  push:
+    paths:
+      - '.github/workflows/p2-wh-pr-map.yml'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch WH PR mapping flow
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/frontend/src/App.jsx')
+          s=p.read_text()
+          s=s.replace("const actionsByRole={WH:['Accept','Query','Return','Reject','Resubmit to GAC Compliance']", "const actionsByRole={WH:['Accept','Map PR','Submit to GAC Compliance','Query','Return','Reject','Resubmit to GAC Compliance']")
+          old="""if(routeChoice==='RECEIVE')routeChoice=null;if(act==='Accept'){ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role]}else if(act==='Submit'){if(role===ROLES.WH){const pr=window.prompt('PR Number (required):','');if(!pr)return;extra={pr_number:pr,pr_mapped_by:profile.id,pr_mapped_at:now};ns=WORKFLOW_STATUS.PR_MAPPED;nstage='GAC_COMPLIANCE'}else if(role===ROLES.GAC_COMPLIANCE){"""
+          new="""if(routeChoice==='RECEIVE')routeChoice=null;if(act==='Accept'){ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role]}else if(act==='Map PR'){if(role!==ROLES.WH)return;const pr=(routeChoice||'').trim();if(!pr){setError('PR Number is mandatory before Map PR.');return}extra={pr_number:pr,pr_mapped_by:profile.id,pr_mapped_at:now};ns=WORKFLOW_STATUS.ACCEPTED;nstage='WH'}else if(act==='Submit to GAC Compliance'){if(role!==ROLES.WH)return;const prRows=await selectRows('pr_po_utr',`&invoice_id=eq.${inv.id}`,token);if(!prRows.length||!prRows[0].pr_number){setError('Map PR Number before submitting to GAC Compliance.');return}ns=WORKFLOW_STATUS.PR_MAPPED;nstage='GAC_COMPLIANCE'}else if(act==='Submit'){if(role===ROLES.WH){return}else if(role===ROLES.GAC_COMPLIANCE){"""
+          if old not in s: raise SystemExit('doAction WH block not found')
+          s=s.replace(old,new)
+          old2="""const[checked,setChecked]=useState([]);const[poDraft,setPoDraft]=useState({});const[savedPO,setSavedPO]=useState({});"""
+          new2="""const[checked,setChecked]=useState([]);const[poDraft,setPoDraft]=useState({});const[savedPO,setSavedPO]=useState({});const[prDraft,setPrDraft]=useState({});const[savedPR,setSavedPR]=useState({});"""
+          if old2 not in s: raise SystemExit('state block not found')
+          s=s.replace(old2,new2)
+          old3="""const savePO=async x=>{const po=(poDraft[x.id]||'').trim();if(!po)return;await onAction(x,'PO Mapping',po);setSavedPO(v=>({...v,[x.id]:po}))};const submitPO=async x=>{if(!savedPO[x.id])return;await onAction(x,'Submit')};const actionButtons=x=>{if(isReceivedProcess&&role===ROLES.GAC_PO)return"""
+          new3="""const savePO=async x=>{const po=(poDraft[x.id]||'').trim();if(!po)return;await onAction(x,'PO Mapping',po);setSavedPO(v=>({...v,[x.id]:po}))};const submitPO=async x=>{if(!savedPO[x.id])return;await onAction(x,'Submit')};const mapPR=async x=>{const pr=(prDraft[x.id]||'').trim();if(!pr)return;await onAction(x,'Map PR',pr);setSavedPR(v=>({...v,[x.id]:pr}))};const submitToGAC=async x=>{if(!(savedPR[x.id]||x.pr_number))return;await onAction(x,'Submit to GAC Compliance')};const actionButtons=x=>{if(isReceivedProcess&&role===ROLES.WH)return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><input value={prDraft[x.id]||x.pr_number||''} onChange={e=>setPrDraft(v=>({...v,[x.id]:e.target.value}))} placeholder='PR Number' style={{minWidth:150}}/><button className='primary' onClick={()=>mapPR(x)} disabled={!(prDraft[x.id]||'').trim()}>Map PR</button><button className='primary' onClick={()=>submitToGAC(x)} disabled={!(savedPR[x.id]||x.pr_number)}>Submit to GAC Compliance</button></div>;if(isReceivedProcess&&role===ROLES.GAC_PO)return"""
+          if old3 not in s: raise SystemExit('action block not found')
+          s=s.replace(old3,new3)
+          p.write_text(s)
+
+          p=Path('app/frontend/src/services/gitDatabase.js')
+          s=p.read_text()
+          needle="if(role==='WH'&&status==='SUBMITTED'&&ns==='WH'&&nst==='ACCEPTED')return"
+          repl=needle+"\n  if(role==='WH'&&status==='ACCEPTED'&&ns==='WH'&&nst==='ACCEPTED')return"
+          if needle not in s: raise SystemExit('WH accept transition not found')
+          s=s.replace(needle,repl,1)
+          p.write_text(s)
+          PY
+      - name: Verify patch
+        run: |
+          grep -n "Map PR\|Submit to GAC Compliance\|Map PR Number" app/frontend/src/App.jsx
+          grep -n "status==='ACCEPTED'&&ns==='WH'&&nst==='ACCEPTED'" app/frontend/src/services/gitDatabase.js
+          cd app/frontend
+          npm ci
+          npm run build
+      - name: Commit patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/frontend/src/App.jsx app/frontend/src/services/gitDatabase.js
+          git diff --cached --quiet && echo 'No changes to commit' && exit 0
+          git commit -m 'Fix Warehouse PR mapping and GAC submission sequence'
+          git push
