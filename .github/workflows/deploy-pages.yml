@@ -1,5 +1,6 @@
 name: Deploy frontend to GitHub Pages
 
+# P2 deployment: development branch is the live development Pages source.
 on:
   push:
     branches: [development]
