@@ -3,6 +3,7 @@ name: P2 contract dropdown fix
 on:
   push:
     branches: [development]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -19,13 +20,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply strict P2 Upload Docs sequence
+      - name: Apply P2 fixes
         shell: python
         run: |
           from pathlib import Path
           import re
           p=Path('app/frontend/src/App.jsx')
           s=p.read_text()
+          # Vendor is a workflow stage too; without this the Vendor Submitted tab
+          # has no roleStage key and therefore always renders empty.
+          s=s.replace("const roleStage={WH:'WH'", "const roleStage={VENDOR:'VENDOR',WH:'WH'")
+          # Keep the existing strict Upload Docs implementation from this workflow.
           start=s.index('function WHUpload(')
           end=s.index('function VendorPending(', start)
           new=r'''function WHUpload({profile,mapping,token,onDone}){
@@ -66,5 +71,5 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add app/frontend/src
-          git commit -m 'Fix P2 sequential Upload Docs implementation' || exit 0
+          git commit -m 'Fix P2 vendor submitted tab' || exit 0
           git push origin development
