@@ -1,0 +1,54 @@
+name: P2 contract dropdown fix
+
+on:
+  push:
+    branches: [development]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.event.head_commit.message != 'Fix P2 contract type dropdown'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: development
+          fetch-depth: 0
+      - name: Fix Contract Type options and remove forbidden message
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          root=Path('app/frontend/src')
+          p=root/'App.jsx'
+          s=p.read_text()
+          s,n=re.subn(r"const contracts=service==='HK'\|\|service==='Security'\?\['Minimum Wages'\]:service==='Manpower'\?\['Commercial','Minimum Wages'\]:service\?\['Commercial','Minimum Wages'\]:\[\];", "const contracts=['Commercial','Minimum Wages'];", s)
+          if n==0:
+              raise SystemExit('Contract Type expression not found')
+          s=s.replace('Project / Location','Project').replace('Project & Location','Project')
+          s=re.sub(r'Universal sequential selection:[^<\\n]*','',s,flags=re.I)
+          s=re.sub(r'Complete the steps in order\\.[^<\\n]*','',s,flags=re.I)
+          p.write_text(s)
+          for f in root.rglob('*'):
+              if f.is_file() and f.suffix in {'.js','.jsx','.css','.md'}:
+                  t=f.read_text()
+                  u=t.replace('Project / Location','Project').replace('Project & Location','Project')
+                  u=re.sub(r'Universal sequential selection:[^<\\n]*','',u,flags=re.I)
+                  u=re.sub(r'Complete the steps in order\\.[^<\\n]*','',u,flags=re.I)
+                  if u!=t:f.write_text(u)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build and commit
+        working-directory: app/frontend
+        run: |
+          npm ci
+          npm run build
+          cd ../..
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add app/frontend/src
+          git commit -m 'Fix P2 contract type dropdown' || exit 0
+          git push origin development
