@@ -35,8 +35,6 @@ export const WORKFLOW_STATUS = {
   REJECTED: 'REJECTED',
 }
 
-// Route 1: standard WH-initiated bill flow.
-// Route 2 (Other): starts at Vendor and then follows the same balance of the workflow.
 export const ROUTES = {
   WH_TO_VENDOR: ['WH', 'VENDOR'],
   VENDOR_TO_WH: ['VENDOR', 'WH'],
@@ -72,3 +70,4 @@ export const isApplicableService = (contractType, serviceType) =>
   SERVICE_RULES[serviceType]?.includes(contractType) ?? false
 
 // P2 workflow matrix is enforced centrally in gitDatabase.js.
+// Deployment refresh: complete workflow gate through Paid.
