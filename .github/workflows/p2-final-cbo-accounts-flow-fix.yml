@@ -32,6 +32,18 @@ jobs:
           old3="else if(act==='Approve'){ns=WORKFLOW_STATUS.APPROVED_FOR_PAYMENT;nstage='ACCOUNTS'}"
           new3="else if(act==='Approve'){ns=WORKFLOW_STATUS.SUBMITTED;nstage='ACCOUNTS'}"
           if old3 in s: s=s.replace(old3,new3)
+
+          # Permanent guard: Accounts at APPROVED_FOR_PAYMENT can never render or execute Accept.
+          if 'P2_ACCOUNTS_APPROVED_FOR_PAYMENT_UI_GUARD' not in s:
+              anchor='if(isPending)return'
+              if anchor not in s: raise SystemExit('Expected pending-action renderer not found; refusing unsafe edit.')
+              guard="/* P2_ACCOUNTS_APPROVED_FOR_PAYMENT_UI_GUARD */\n   if(isPending&&role===ROLES.ACCOUNTS&&x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT&&x.current_stage===roleStage[role])return <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}><button className='link-btn' onClick={()=>openDocuments(x)}>View</button><button className='primary' onClick={()=>onAction(x,'Paid')}>Paid</button></div>;\n   "
+              s=s.replace(anchor,guard+anchor,1)
+          if 'P2_ACCOUNTS_APPROVED_FOR_PAYMENT_HANDLER_GUARD' not in s:
+              anchor="const doAction=async(inv,act,routeChoice)=>{const now=new Date().toISOString();let ns=inv.current_status,nstage=inv.current_stage,extra={}\n"
+              if anchor not in s: raise SystemExit('Expected action-handler anchor not found; refusing unsafe edit.')
+              guard="/* P2_ACCOUNTS_APPROVED_FOR_PAYMENT_HANDLER_GUARD */\n   if(role===ROLES.ACCOUNTS&&act==='Accept'&&inv.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT&&inv.current_stage===roleStage[role]){setError('Accounts: Approved for Payment can only be marked Paid. Accept is not permitted.');return}\n   "
+              s=s.replace(anchor,anchor+guard,1)
           p.write_text(s)
 
           p=Path('app/frontend/src/services/gitDatabase.js')
