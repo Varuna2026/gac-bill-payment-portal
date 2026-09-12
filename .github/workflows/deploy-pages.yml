@@ -5,7 +5,7 @@ on:
     branches: [development]
   workflow_dispatch:
   workflow_run:
-    workflows: ["P2 final step fix", "P2 Warehouse Upload Docs fix"]
+    workflows: ["P2 final step fix", "P2 Warehouse Upload Docs fix", "P2 UI layout and mapped selection fix"]
     types: [completed]
 
 permissions:
