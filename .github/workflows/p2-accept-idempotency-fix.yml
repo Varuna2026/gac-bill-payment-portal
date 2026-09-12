@@ -1,37 +1,58 @@
-name: P2 Warehouse Accept idempotency fix
+name: P2 Live Deployment
+
 on:
   push:
     branches: [development]
+  workflow_dispatch:
+
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
-  fix:
-    if: github.event.head_commit.message != 'Apply P2 Warehouse Accept idempotency fix'
+  build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout development
+        uses: actions/checkout@v4
         with:
           ref: development
-          fetch-depth: 0
-      - name: Patch PR mapping idempotency guard
-        shell: python
-        run: |
-          from pathlib import Path
-          p=Path('app/frontend/src/App.jsx')
-          s=p.read_text()
-          old="if(latest&&latest.current_stage===nstage&&latest.current_status===ns){setNotice(latest.latest_remarks||`${act} already recorded.`);refreshData();return}"
-          new="if(!Object.keys(extra).length&&latest&&latest.current_stage===nstage&&latest.current_status===ns){setNotice(latest.latest_remarks||`${act} already recorded.`);refreshData();return}"
-          if old not in s:
-              raise SystemExit('Expected idempotency guard not found')
-          p.write_text(s.replace(old,new,1))
-      - name: Build and commit
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/frontend/package-lock.json
+
+      - name: Install dependencies
         working-directory: app/frontend
-        run: |
-          npm ci
-          npm run build
-          cd ../..
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add app/frontend/src/App.jsx
-          git commit -m 'Apply P2 Warehouse Accept idempotency fix'
-          git push origin development
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: app/frontend
+        run: npm run build
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
