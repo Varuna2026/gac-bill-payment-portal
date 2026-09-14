@@ -20,7 +20,25 @@ export default function WHUpload({ profile, mapping, token, onDone }) {
   const projects = useMemo(() => [...new Set(mapping.filter(x => x.organization === company && x.warehouse === warehouse).map(x => x.project_location).filter(Boolean))], [mapping, company, warehouse])
   const vendors = useMemo(() => [...new Set(mapping.filter(x => x.organization === company && x.warehouse === warehouse && x.project_location === project).map(x => x.vendor).filter(Boolean))], [mapping, company, warehouse, project])
   const services = useMemo(() => [...new Set(mapping.filter(x => x.organization === company && x.warehouse === warehouse && x.project_location === project && x.vendor === vendor).map(x => x.service_type).filter(Boolean))], [mapping, company, warehouse, project, vendor])
-  const contracts = service === 'HK' || service === 'Security' ? ['Minimum Wages'] : service === 'Manpower' ? ['Commercial', 'Minimum Wages'] : service === 'Machine' ? ['Commercial'] : []
+
+  // Contract Type is intentionally BEFORE Service Type in the workflow.
+  // Therefore its options must be derived from the mapped services, not from the
+  // service selection (which would create a circular disabled-dropdown dependency).
+  const contracts = useMemo(() => {
+    if (!vendor) return []
+    const options = []
+    if (services.includes('Manpower') || services.includes('Machine')) options.push('Commercial')
+    if (services.includes('Manpower') || services.includes('HK') || services.includes('Security')) options.push('Minimum Wages')
+    return options
+  }, [vendor, services])
+
+  const availableServices = useMemo(() => {
+    if (!contract) return []
+    if (contract === 'Commercial') return services.filter(v => v === 'Manpower' || v === 'Machine')
+    if (contract === 'Minimum Wages') return services.filter(v => v === 'Manpower' || v === 'HK' || v === 'Security')
+    return []
+  }, [services, contract])
+
   const subCategories = P2_SUB_SERVICES[service] || []
 
   const resetAfterCompany = value => { setCompany(value); setWarehouse(''); setProject(''); setVendor(''); setContract(''); setService(''); setSubCategory(''); setMessage('') }
@@ -85,8 +103,8 @@ export default function WHUpload({ profile, mapping, token, onDone }) {
           <td><select value={warehouse} disabled={!company} onChange={e => resetAfterWarehouse(e.target.value)}><option value="">Select Warehouse</option>{warehouses.map(v => <option key={v}>{v}</option>)}</select></td>
           <td><select value={project} disabled={!warehouse} onChange={e => resetAfterProject(e.target.value)}><option value="">Select Project / Location</option>{projects.map(v => <option key={v}>{v}</option>)}</select></td>
           <td><select value={vendor} disabled={!project} onChange={e => resetAfterVendor(e.target.value)}><option value="">Select Vendor</option>{vendors.map(v => <option key={v}>{v}</option>)}</select></td>
-          <td><select value={contract} disabled={!vendor} onChange={e => resetAfterContract(e.target.value)}><option value="">Select Contract Type</option>{contracts.map(v => <option key={v}>{v}</option>)}</select></td>
-          <td><select value={service} disabled={!contract} onChange={e => resetAfterService(e.target.value)}><option value="">Select Service Type</option>{services.map(v => <option key={v}>{v}</option>)}</select></td>
+          <td><select value={contract} disabled={!vendor || !contracts.length} onChange={e => resetAfterContract(e.target.value)}><option value="">Select Contract Type</option>{contracts.map(v => <option key={v}>{v}</option>)}</select></td>
+          <td><select value={service} disabled={!contract || !availableServices.length} onChange={e => resetAfterService(e.target.value)}><option value="">Select Service Type</option>{availableServices.map(v => <option key={v}>{v}</option>)}</select></td>
           <td><select value={subCategory} disabled={!service} onChange={e => { setSubCategory(e.target.value); setMessage('') }}><option value="">Select Sub-category</option>{subCategories.map(v => <option key={v}>{v}</option>)}</select></td>
         </tr></tbody>
       </table>
