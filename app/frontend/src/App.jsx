@@ -55,7 +55,7 @@ function App(){
      if(role===ROLES.VENDOR)return baseVisible.filter(x=>x.current_stage==='VENDOR'&&x.current_status===WORKFLOW_STATUS.PENDING)
      return baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK,WORKFLOW_STATUS.PO_MAPPED].includes(x.current_status))
    }
-   if(active==='Submitted') return baseVisible.filter(x=>submittedByRole.has(x.id))
+   if(active==='Submitted'){ if(role===ROLES.WH) return baseVisible.filter(x=>x.current_stage==='GAC_COMPLIANCE' || submittedByRole.has(x.id)); return baseVisible.filter(x=>submittedByRole.has(x.id)) }
    if(active==='Approved') return baseVisible.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT)
    if(active==='Paid') return baseVisible.filter(x=>x.current_status===WORKFLOW_STATUS.PAID)
    return baseVisible.filter(x=>x.current_stage===roleStageKey)
