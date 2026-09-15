@@ -1,0 +1,76 @@
+name: P2 universal View before Accept
+on:
+  push:
+    branches: [development]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: development
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/frontend/package-lock.json
+      - name: Patch universal View before Accept
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/frontend/src/App.jsx')
+          s=p.read_text()
+          old="""else if(act==='Submit to GAC Compliance'){if(role!==ROLES.WH)return;const latestInvoiceRows=await selectRows('invoice_records',`id=eq.${inv.id}`,token);"""
+          new="""else if(act==='Submit to GAC Compliance'){if(role!==ROLES.WH)return;const latestInvoiceRows=await selectRows('invoice_records',`id=eq.${inv.id}`,token);"""
+          if old not in s: raise SystemExit('anchor 1 missing')
+          # Gate every Accept at the workflow handler, not only in the button UI.
+          old2="""if(routeChoice==='RECEIVE')routeChoice=null;if(act==='Accept'){ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role]}else if(act==='Map PR')"""
+          new2="""if(routeChoice==='RECEIVE')routeChoice=null;if(act==='Accept'){const latestViewRows=await selectRows('invoice_records',`id=eq.${inv.id}`,token);const latestView=latestViewRows[0];const viewedStages=String(latestView?.document_viewed_stages||'').split(',').map(x=>x.trim()).filter(Boolean);if(!viewedStages.includes(roleStage[role])){setError('View / Download / Print the document before Accept.');return}ns=WORKFLOW_STATUS.ACCEPTED;nstage=roleStage[role]}else if(act==='Map PR')"""
+          if old2 not in s: raise SystemExit('anchor 2 missing')
+          s=s.replace(old2,new2,1)
+          old3="""function StatusTable({data,role,onAction,title,showWarehouseRemarks=false,history=[]}){const acts=actionsByRole[role]||[];"""
+          new3="""function StatusTable({data,role,onAction,title,showWarehouseRemarks=false,history=[]}){const acts=actionsByRole[role]||[];const[viewed,setViewed]=useState({});"""
+          if old3 not in s: raise SystemExit('anchor 3 missing')
+          s=s.replace(old3,new3,1)
+          old4="""const openDocuments=async x=>{try{const q=x.request_id?`&request_id=eq.${x.request_id}`:`&invoice_id=eq.${x.id}`;const docs=await selectRows('document_records',q);if(!docs.length){alert('No documents found for this invoice.');return}for(const d of docs){const blob=await readRDFile(d.storage_path);if(blob){const url=URL.createObjectURL(blob);window.open(url,'_blank','noopener,noreferrer')}}}catch(e){alert(e.message)}};"""
+          new4="""const openDocuments=async x=>{try{const q=x.request_id?`&request_id=eq.${x.request_id}`:`&invoice_id=eq.${x.id}`;const docs=await selectRows('document_records',q,token);if(!docs.length){alert('No documents found for this invoice.');return false}let readAny=false;for(const d of docs){const blob=await readRDFile(d.storage_path);if(blob){readAny=true;const url=URL.createObjectURL(blob);window.open(url,'_blank','noopener,noreferrer')}}if(readAny){setViewed(v=>({...v,[x.id]:true}));const latest=await selectRows('invoice_records',`id=eq.${x.id}`,token);const prior=String(latest[0]?.document_viewed_stages||'').split(',').map(v=>v.trim()).filter(Boolean);if(!prior.includes(roleStage[role])){await updateRows('invoice_records',`id=eq.${x.id}`,{document_viewed_stages:[...prior,roleStage[role]].join(',')},token)}}return readAny}catch(e){alert(e.message);return false}};"""
+          if old4 not in s: raise SystemExit('anchor 4 missing')
+          s=s.replace(old4,new4,1)
+          old5="""if(isPending)return <div style={{display:'flex',gap:6,flexWrap:'wrap'}}><button className=\"link-btn\" onClick={()=>openDocuments(x)}>View</button><button className=\"primary\" onClick={()=>onAction(x,'Accept','RECEIVE')}>Accept</button></div>;"""
+          new5="""if(isPending){const canAccept=viewed[x.id]||String(x.document_viewed_stages||'').split(',').map(v=>v.trim()).includes(roleStage[role]);return <div style={{display:'flex',gap:6,flexWrap:'wrap'}}><button className=\"link-btn\" onClick={()=>openDocuments(x)}>View / Download / Print</button><button className=\"primary\" disabled={!canAccept} onClick={()=>onAction(x,'Accept','RECEIVE')}>Accept</button></div>};"""
+          if old5 not in s: raise SystemExit('anchor 5 missing')
+          s=s.replace(old5,new5,1)
+          # GAC Compliance Accept is in the role-specific branch; gate it with the same universal proof.
+          old6="""<button className=\"primary\" onClick={()=>onAction(x,'Accept')}>Accept</button>"""
+          new6="""<button className=\"primary\" disabled={!(viewed[x.id]||String(x.document_viewed_stages||'').split(',').map(v=>v.trim()).includes(roleStage[role]))} onClick={()=>onAction(x,'Accept')}>Accept</button>"""
+          if old6 not in s: raise SystemExit('anchor 6 missing')
+          s=s.replace(old6,new6,1)
+          # Other generic Accept buttons in StatusTable use the same gate.
+          old7="""{acts.filter(a=>a!=='Resubmit to GAC Compliance'||x.current_status===WORKFLOW_STATUS.RETURNED).map(a=><button key={a} onClick={()=>onAction(x,a)}>{a}</button>)}</div>"""
+          new7="""{acts.filter(a=>a!=='Resubmit to GAC Compliance'||x.current_status===WORKFLOW_STATUS.RETURNED).map(a=>{const canAccept=viewed[x.id]||String(x.document_viewed_stages||'').split(',').map(v=>v.trim()).includes(roleStage[role]);return <button key={a} disabled={a==='Accept'&&!canAccept} onClick={()=>onAction(x,a)}>{a}</button>})}</div>"""
+          if old7 not in s: raise SystemExit('anchor 7 missing')
+          s=s.replace(old7,new7,1)
+          p.write_text(s)
+          PY
+      - name: Build
+        run: |
+          cd app/frontend
+          npm ci
+          npm run build
+      - name: Commit patched app
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/frontend/src/App.jsx
+          git diff --cached --quiet || git commit -m 'P2: universal View before Accept gate'
+          git push origin development
+      - name: Remove temporary workflow
+        if: success()
+        run: |
+          git rm .github/workflows/p2-universal-view-accept.yml || true
+          git commit -m 'P2: remove temporary universal gate workflow' || true
+          git push origin development || true
