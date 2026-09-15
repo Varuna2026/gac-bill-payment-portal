@@ -59,3 +59,5 @@ jobs:
           git rm .github/workflows/p2-workflow-complete-fix.yml
           git commit -m "P2: remove temporary workflow fixer"
           git push origin HEAD:development
+
+# trigger workflow
