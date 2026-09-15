@@ -1,1 +1,0 @@
-P2 invoice month rule deployment trigger
