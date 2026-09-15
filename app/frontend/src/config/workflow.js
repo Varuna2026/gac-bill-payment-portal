@@ -71,3 +71,4 @@ export const isApplicableService = (contractType, serviceType) =>
 
 // P2 workflow matrix is enforced centrally in gitDatabase.js.
 // Deployment refresh: complete workflow gate through Paid.
+// Verified routing: GAC PO → Accounts → CBO Office → CBO Officer → final Accounts/PAID.
