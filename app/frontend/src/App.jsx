@@ -55,7 +55,7 @@ function App(){
      if(role===ROLES.VENDOR)return baseVisible.filter(x=>x.current_stage==='VENDOR'&&x.current_status===WORKFLOW_STATUS.PENDING)
      return baseVisible.filter(x=>x.current_stage===roleStageKey&&[WORKFLOW_STATUS.ACCEPTED,WORKFLOW_STATUS.UNDER_COMPLIANCE_CHECK,WORKFLOW_STATUS.PO_MAPPED].includes(x.current_status))
    }
-   if(active==='Submitted'){ if(role===ROLES.WH) return baseVisible.filter(x=>x.current_stage==='GAC_COMPLIANCE' || submittedByRole.has(x.id)); return baseVisible.filter(x=>submittedByRole.has(x.id)) }
+   if(active==='Submitted'){ if(role===ROLES.WH){ const submittedRequests=whSubmittedRequests.map(r=>({id:`REQ-${r.id}`,inv_no:'—',company:r.company||r.organization,warehouse:r.warehouse,project_location:r.project_location,vendor:r.vendor,service_type:r.service_type,sub_category:r.sub_service,contract_type:r.contract_type,current_status:'PENDING_VENDOR',current_stage:'WH',status_message:'Submitted to Vendor',warehouse_remarks:r.remarks||'',created_at:r.created_at})); const submittedInvoices=baseVisible.filter(x=>x.current_stage==='GAC_COMPLIANCE' || submittedByRole.has(x.id)); return [...submittedRequests,...submittedInvoices] } return baseVisible.filter(x=>submittedByRole.has(x.id)) }
    if(active==='Approved') return baseVisible.filter(x=>x.current_status===WORKFLOW_STATUS.APPROVED_FOR_PAYMENT)
    if(active==='Paid') return baseVisible.filter(x=>x.current_status===WORKFLOW_STATUS.PAID)
    return baseVisible.filter(x=>x.current_stage===roleStageKey)
