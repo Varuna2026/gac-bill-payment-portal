@@ -1,0 +1,61 @@
+name: P2 complete workflow path fix
+
+on:
+  push:
+    branches: [development]
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: development
+          fetch-depth: 0
+
+      - name: Patch workflow routing
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          app = Path('app/frontend/src/App.jsx')
+          s = app.read_text()
+          old1 = "else if(role===ROLES.GAC_PO){const poRows=await selectRows('pr_po_utr',`&invoice_id=eq.${inv.id}`,token);if(!poRows.length||!poRows[0].po_number){setError('PO Number is mandatory before Submit.');return}ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICE'}"
+          new1 = "else if(role===ROLES.GAC_PO){const poRows=await selectRows('pr_po_utr',`&invoice_id=eq.${inv.id}`,token);if(!poRows.length||!poRows[0].po_number){setError('PO Number is mandatory before Submit.');return}ns=WORKFLOW_STATUS.SUBMITTED;nstage='ACCOUNTS'}"
+          old2 = "else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICER'}"
+          new2 = "else if(role===ROLES.ACCOUNTS){ns=WORKFLOW_STATUS.SUBMITTED;nstage='CBO_OFFICE'}"
+          if old1 not in s or old2 not in s:
+              raise SystemExit('Expected App.jsx workflow routing text not found')
+          s = s.replace(old1, new1, 1).replace(old2, new2, 1)
+          app.write_text(s)
+
+          db = Path('app/frontend/src/services/gitDatabase.js')
+          s = db.read_text()
+          old3 = "if(ok('GAC_PO','PO_MAPPED','CBO_OFFICE','SUBMITTED'))return"
+          old4 = "if(ok('GAC_PO','PO_MAPPED','ACCOUNTS','PO_MAPPED'))return"
+          new4 = "if(ok('GAC_PO','PO_MAPPED','ACCOUNTS','SUBMITTED'))return"
+          old5 = "if(ok('ACCOUNTS','ACCEPTED','CBO_OFFICER','SUBMITTED'))return"
+          new5 = "if(ok('ACCOUNTS','ACCEPTED','CBO_OFFICE','SUBMITTED'))return"
+          if old3 not in s or old4 not in s or old5 not in s:
+              raise SystemExit('Expected gitDatabase.js workflow gate text not found')
+          s = s.replace(old3 + "\n", "", 1)
+          s = s.replace(old4, new4, 1)
+          s = s.replace(old5, new5, 1)
+          db.write_text(s)
+          PY
+
+      - name: Build frontend
+        working-directory: app/frontend
+        run: npm ci && npm run build
+
+      - name: Commit final workflow fix and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/frontend/src/App.jsx app/frontend/src/services/gitDatabase.js .github/workflows/p2-workflow-complete-fix.yml
+          git commit -m "P2: complete invoice workflow path through Paid" -- . || exit 0
+          git rm .github/workflows/p2-workflow-complete-fix.yml
+          git commit -m "P2: remove temporary workflow fixer"
+          git push origin HEAD:development
