@@ -1,10 +1,73 @@
-name: P2 final step fix (disabled)
+name: P2 final Warehouse Accept fix and deploy
 
 on:
+  push:
+    branches: [development]
   workflow_dispatch:
 
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: p2-final-warehouse-accept
+  cancel-in-progress: false
+
 jobs:
-  disabled:
+  fix-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - run: echo "Disabled. P2 source is maintained directly; no workflow patching of App.jsx."
+      - name: Checkout development
+        uses: actions/checkout@v4
+        with:
+          ref: development
+          fetch-depth: 0
+
+      - name: Patch every StatusTable usage with token
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/frontend/src/App.jsx')
+          s=p.read_text()
+          old='history={history}/>'
+          new='history={history} token={token}/>'
+          before=s.count(old)
+          s=s.replace(old,new)
+          p.write_text(s)
+          print(f'Patched {before} StatusTable usage(s)')
+          if 'function StatusTable({data,role,onAction,title,showWarehouseRemarks=false,history=[],token})' not in s:
+              raise SystemExit('StatusTable token prop is missing')
+          if 'history={history} token={token}' not in s:
+              raise SystemExit('No StatusTable token wiring found')
+          PY
+
+      - name: Build frontend
+        working-directory: app/frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit source fix and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/frontend/src/App.jsx
+          git commit -m "P2: fix token wiring for Warehouse Accept" || true
+          git rm .github/workflows/p2-final-step-fix.yml
+          git commit -m "P2: remove temporary Warehouse Accept deploy workflow"
+          git push origin HEAD:development
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload fixed Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/frontend/dist
+
+      - name: Deploy fixed P2 build to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
